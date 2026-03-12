@@ -5,6 +5,7 @@ import type { FastifyInstance } from 'fastify';
 import { createModuleLogger } from '../../../lib/logger.js';
 import {
   CartNotFoundError,
+  CheckoutAddressNotFoundError,
   checkoutService,
   EmptyCartError,
   InactiveProductError,
@@ -77,6 +78,15 @@ const router = s.router(checkoutContract, {
       if (error instanceof OrderNumberGenerationError) {
         return {
           status: 500 as const,
+          body: {
+            error: error.message,
+          },
+        };
+      }
+
+      if (error instanceof CheckoutAddressNotFoundError) {
+        return {
+          status: 422 as const,
           body: {
             error: error.message,
           },

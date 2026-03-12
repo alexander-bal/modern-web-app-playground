@@ -125,3 +125,4 @@ Feature specs live in `docs/specs/`. Use `FR-*` for functional requirements, `TR
 - If implementing from `docs/specs/`: Remove 🚧 from completed items
 - If the task added or modified a user-facing feature: use the browser tool to walk through the affected user flows end-to-end
 - If implementing a user-facing feature with E2E scenarios in the spec: write Playwright tests covering those scenarios in `apps/web/e2e/`. Follow existing patterns (`apps/web/e2e/*.spec.ts`, page objects in `apps/web/e2e/pages/`). Run `pnpm test:e2e` to verify.
+- **When a spec has E2E scenarios:** Write Playwright tests in `apps/web/e2e/` as part of the same implementation. E2E scenarios are not optional deliverables. This is a fullstack monorepo — backend features almost always have a frontend counterpart in `apps/web/`.

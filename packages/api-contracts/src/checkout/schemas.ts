@@ -15,11 +15,56 @@ export const addressSchema = z.object({
   phone: z.string().optional(),
 });
 
-export const checkoutRequestSchema = z.object({
-  shippingAddress: addressSchema,
-  billingAddress: addressSchema.optional(),
-  billingSameAsShipping: z.boolean().default(false),
-});
+export const checkoutRequestSchema = z
+  .object({
+    shippingAddress: addressSchema.optional(),
+    shippingAddressId: z.string().uuid().optional(),
+    billingAddress: addressSchema.optional(),
+    billingAddressId: z.string().uuid().optional(),
+    billingSameAsShipping: z.boolean().default(false),
+    saveShippingAddress: z.boolean().optional(),
+    saveBillingAddress: z.boolean().optional(),
+  })
+  .superRefine((data, ctx) => {
+    // Shipping: exactly one of shippingAddress or shippingAddressId
+    if (data.shippingAddress && data.shippingAddressId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either shippingAddress or shippingAddressId, not both',
+        path: ['shippingAddressId'],
+      });
+    }
+    if (!data.shippingAddress && !data.shippingAddressId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Shipping address is required',
+        path: ['shippingAddress'],
+      });
+    }
+    // Cannot save an already-saved address
+    if (data.saveShippingAddress && data.shippingAddressId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Cannot save an already-saved address',
+        path: ['saveShippingAddress'],
+      });
+    }
+    if (data.saveBillingAddress && data.billingAddressId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Cannot save an already-saved address',
+        path: ['saveBillingAddress'],
+      });
+    }
+    // Billing: cannot have both billingAddress and billingAddressId
+    if (data.billingAddress && data.billingAddressId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Provide either billingAddress or billingAddressId, not both',
+        path: ['billingAddressId'],
+      });
+    }
+  });
 
 export const checkoutResponseSchema = z.object({
   id: z.string().uuid(),

@@ -1,3 +1,4 @@
+export * from './addresses.js';
 export * from './companies.js';
 export * from './order-items.js';
 export * from './orders.js';

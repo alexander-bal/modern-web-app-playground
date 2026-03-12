@@ -20,6 +20,9 @@ export class CheckoutPage {
   readonly placeOrderButton: Locator;
   readonly errorAlert: Locator;
   readonly orderSummaryHeading: Locator;
+  readonly savedAddressRadios: Locator;
+  readonly enterNewAddressRadio: Locator;
+  readonly saveAddressCheckbox: Locator;
 
   constructor(page: Page) {
     this.page = page;
@@ -34,6 +37,9 @@ export class CheckoutPage {
     this.placeOrderButton = page.getByRole('button', { name: 'Place Order' });
     this.errorAlert = page.getByRole('alert');
     this.orderSummaryHeading = page.getByRole('heading', { name: 'Order Summary' });
+    this.savedAddressRadios = page.getByRole('radio');
+    this.enterNewAddressRadio = page.getByLabel('Enter a new address').first();
+    this.saveAddressCheckbox = page.getByTestId('save-shipping-checkbox');
   }
 
   async goto() {
@@ -50,5 +56,17 @@ export class CheckoutPage {
 
   async placeOrder() {
     await this.placeOrderButton.click();
+  }
+
+  async selectSavedAddress(index: number): Promise<void> {
+    await this.savedAddressRadios.nth(index).click();
+  }
+
+  async selectNewAddress(): Promise<void> {
+    await this.enterNewAddressRadio.click();
+  }
+
+  async checkSaveAddress(): Promise<void> {
+    await this.saveAddressCheckbox.check();
   }
 }

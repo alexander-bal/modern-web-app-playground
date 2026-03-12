@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
 import {
   boolean,
+  char,
   check,
   customType,
   date,
@@ -240,3 +241,41 @@ export const orderItems = pgTable(
 
 export type OrderItem = typeof orderItems.$inferSelect;
 export type NewOrderItem = typeof orderItems.$inferInsert;
+
+// =============================================================================
+// Address Tables
+// =============================================================================
+
+/**
+ * Addresses table schema
+ * Stores saved shipping/billing addresses for authenticated users
+ */
+export const addresses = pgTable(
+  'addresses',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    fullName: text('full_name').notNull(),
+    addressLine1: text('address_line_1').notNull(),
+    addressLine2: text('address_line_2'),
+    city: text('city').notNull(),
+    state: text('state'),
+    postalCode: text('postal_code').notNull(),
+    countryCode: char('country_code', { length: 2 }).notNull(),
+    phone: text('phone'),
+    isDefault: boolean('is_default').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('addresses_user_id_idx').on(table.userId),
+    uniqueIndex('addresses_one_default_per_user_idx')
+      .on(table.userId)
+      .where(sql`${table.isDefault} = true`),
+  ]
+);
+
+export type Address = typeof addresses.$inferSelect;
+export type NewAddress = typeof addresses.$inferInsert;

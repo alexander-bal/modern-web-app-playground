@@ -5,6 +5,7 @@ export type { Address, CheckoutRequest, CheckoutResponse } from './domain/checko
 
 export {
   CartNotFoundError,
+  CheckoutAddressNotFoundError,
   checkoutService,
   EmptyCartError,
   InactiveProductError,

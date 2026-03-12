@@ -38,6 +38,23 @@ export class ApiHelper {
       throw new Error(`Logout failed (${res.status()}): ${await res.text()}`);
     }
   }
+
+  async createAddress(address: {
+    fullName: string;
+    addressLine1: string;
+    city: string;
+    postalCode: string;
+    countryCode: string;
+    isDefault?: boolean;
+    addressLine2?: string;
+    state?: string;
+    phone?: string;
+  }): Promise<void> {
+    const res = await this.request.post(`${BACKEND_URL}/api/v1/addresses`, { data: address });
+    if (!res.ok()) {
+      throw new Error(`Create address failed (${res.status()}): ${await res.text()}`);
+    }
+  }
 }
 
 export function uniqueEmail(): string {

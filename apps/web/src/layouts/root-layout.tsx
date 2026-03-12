@@ -122,6 +122,9 @@ export function RootLayout() {
                       {user.firstName} {user.lastName}
                     </Typography>
                   </Box>
+                  <Button variant="text" component={Link} to="/account/addresses" size="small">
+                    Address Book
+                  </Button>
                   <Button variant="text" component={Link} to="/orders" size="small">
                     My Orders
                   </Button>

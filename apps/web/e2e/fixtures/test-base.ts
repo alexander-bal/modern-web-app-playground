@@ -1,5 +1,6 @@
 import { test as base, type Page } from '@playwright/test';
 import { ApiHelper, testUser } from '../helpers/api-helper.js';
+import { AddressesPage } from '../pages/addresses-page.js';
 import { CartPage } from '../pages/cart-page.js';
 import { CheckoutPage } from '../pages/checkout-page.js';
 import { LoginPage } from '../pages/login-page.js';
@@ -20,6 +21,7 @@ interface TestFixtures {
   checkoutPage: CheckoutPage;
   orderConfirmationPage: OrderConfirmationPage;
   searchResultsPage: SearchResultsPage;
+  addressesPage: AddressesPage;
   apiHelper: ApiHelper;
   /** Page pre-authenticated as a unique test user via API register + UI login. */
   authenticatedPage: Page;
@@ -52,6 +54,9 @@ export const test = base.extend<TestFixtures>({
   },
   searchResultsPage: async ({ page }, use) => {
     await use(new SearchResultsPage(page));
+  },
+  addressesPage: async ({ authenticatedPage }, use) => {
+    await use(new AddressesPage(authenticatedPage));
   },
   apiHelper: async ({ page }, use) => {
     await use(new ApiHelper(page.request));

@@ -8,6 +8,12 @@ import {
   findOrderByUserId,
 } from '../../cart/repositories/cart.repository.js';
 import { findProductById } from '../../products/repositories/products.repository.js';
+import {
+  countAddressesByUserId,
+  findAddressByIdAndUserId,
+  hasDefaultAddress,
+  insertAddress,
+} from '../../addresses/repositories/addresses.repository.js';
 import type { Address, CheckoutRequest } from '../domain/checkout.types.js';
 
 const logger = createModuleLogger('checkout');
@@ -51,6 +57,35 @@ export class OrderNotCheckoutEligibleError extends Error {
   }
 }
 
+export class CheckoutAddressNotFoundError extends Error {
+  constructor(type: 'shipping' | 'billing') {
+    super(`${type === 'shipping' ? 'Shipping' : 'Billing'} address not found`);
+    this.name = 'CheckoutAddressNotFoundError';
+  }
+}
+
+function mapDbAddressToAddress(dbAddr: {
+  fullName: string;
+  addressLine1: string;
+  addressLine2: string | null;
+  city: string;
+  state: string | null;
+  postalCode: string;
+  countryCode: string;
+  phone: string | null;
+}): Address {
+  return {
+    fullName: dbAddr.fullName,
+    addressLine1: dbAddr.addressLine1,
+    addressLine2: dbAddr.addressLine2 ?? undefined,
+    city: dbAddr.city,
+    state: dbAddr.state ?? undefined,
+    postalCode: dbAddr.postalCode,
+    countryCode: dbAddr.countryCode,
+    phone: dbAddr.phone ?? undefined,
+  };
+}
+
 async function generateOrderNumber(database: Database, retryAttempt = 0): Promise<string> {
   const today = new Date().toISOString().split('T')?.[0] || '';
   const formattedDate = today.replace(/-/g, '');
@@ -78,16 +113,18 @@ export async function checkout(
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
       return await database.transaction(async (tx) => {
+        const txDb = tx as unknown as Database;
+
         let cart = null;
 
         // Try to find cart by cart token first (for guest carts)
         if (cartToken) {
-          cart = await findCartByToken(cartToken, tx as unknown as Database);
+          cart = await findCartByToken(cartToken, txDb);
         }
 
         // If not found by token, try by user ID
         if (!cart) {
-          cart = await findOrderByUserId(userId, tx as unknown as Database);
+          cart = await findOrderByUserId(userId, txDb);
         }
 
         if (!cart) {
@@ -95,7 +132,7 @@ export async function checkout(
         }
 
         if (cart.status === 'confirmed') {
-          const cartItems = await findCartItems(cart.id, tx as unknown as Database);
+          const cartItems = await findCartItems(cart.id, txDb);
           const formattedItems = cartItems.map((item) => ({
             id: item.id,
             productId: item.productId,
@@ -144,7 +181,7 @@ export async function checkout(
           throw new OrderNotCheckoutEligibleError(cart.status);
         }
 
-        const cartItems = await findCartItems(cart.id, tx as unknown as Database);
+        const cartItems = await findCartItems(cart.id, txDb);
 
         if (cartItems.length === 0) {
           throw new EmptyCartError();
@@ -152,7 +189,7 @@ export async function checkout(
 
         const inactiveProducts: string[] = [];
         for (const item of cartItems) {
-          const product = await findProductById(item.productId, tx as unknown as Database);
+          const product = await findProductById(item.productId, txDb);
           if (!product || product.status !== 'active') {
             inactiveProducts.push(item.productName);
           }
@@ -162,11 +199,74 @@ export async function checkout(
           throw new InactiveProductError(inactiveProducts);
         }
 
-        const orderNumber = await generateOrderNumber(tx as unknown as Database, attempt);
+        // Resolve shipping address
+        let resolvedShippingAddress: Address;
+        if (request.shippingAddressId) {
+          const saved = await findAddressByIdAndUserId(request.shippingAddressId, userId, txDb);
+          if (!saved) throw new CheckoutAddressNotFoundError('shipping');
+          resolvedShippingAddress = mapDbAddressToAddress(saved);
+        } else {
+          resolvedShippingAddress = request.shippingAddress!;
+        }
 
-        const billingAddress = request.billingSameAsShipping
-          ? request.shippingAddress
-          : request.billingAddress || request.shippingAddress;
+        // Resolve billing address
+        let resolvedBillingAddress: Address;
+        if (request.billingSameAsShipping) {
+          resolvedBillingAddress = resolvedShippingAddress;
+        } else if (request.billingAddressId) {
+          const saved = await findAddressByIdAndUserId(request.billingAddressId, userId, txDb);
+          if (!saved) throw new CheckoutAddressNotFoundError('billing');
+          resolvedBillingAddress = mapDbAddressToAddress(saved);
+        } else {
+          resolvedBillingAddress = request.billingAddress || resolvedShippingAddress;
+        }
+
+        // Save addresses to address book if requested (within same transaction)
+        if (request.saveShippingAddress && request.shippingAddress) {
+          const count = await countAddressesByUserId(userId, txDb);
+          if (count < 20) {
+            const noDefault = !(await hasDefaultAddress(userId, txDb));
+            await insertAddress(
+              {
+                userId,
+                fullName: request.shippingAddress.fullName,
+                addressLine1: request.shippingAddress.addressLine1,
+                addressLine2: request.shippingAddress.addressLine2 ?? null,
+                city: request.shippingAddress.city,
+                state: request.shippingAddress.state ?? null,
+                postalCode: request.shippingAddress.postalCode,
+                countryCode: request.shippingAddress.countryCode,
+                phone: request.shippingAddress.phone ?? null,
+                isDefault: noDefault,
+              },
+              txDb
+            );
+          }
+        }
+
+        if (request.saveBillingAddress && request.billingAddress) {
+          const count = await countAddressesByUserId(userId, txDb);
+          if (count < 20) {
+            const noDefault = !(await hasDefaultAddress(userId, txDb));
+            await insertAddress(
+              {
+                userId,
+                fullName: request.billingAddress.fullName,
+                addressLine1: request.billingAddress.addressLine1,
+                addressLine2: request.billingAddress.addressLine2 ?? null,
+                city: request.billingAddress.city,
+                state: request.billingAddress.state ?? null,
+                postalCode: request.billingAddress.postalCode,
+                countryCode: request.billingAddress.countryCode,
+                phone: request.billingAddress.phone ?? null,
+                isDefault: noDefault,
+              },
+              txDb
+            );
+          }
+        }
+
+        const orderNumber = await generateOrderNumber(txDb, attempt);
 
         const today = new Date().toISOString().split('T')?.[0] || '';
 
@@ -176,8 +276,8 @@ export async function checkout(
             status: 'confirmed',
             orderNumber,
             orderDate: today,
-            shippingAddress: JSON.stringify(request.shippingAddress),
-            billingAddress: JSON.stringify(billingAddress),
+            shippingAddress: JSON.stringify(resolvedShippingAddress),
+            billingAddress: JSON.stringify(resolvedBillingAddress),
             userId,
             cartToken: null,
             updatedAt: sql`now()`,
@@ -226,8 +326,8 @@ export async function checkout(
           discountAmount: updatedOrder.discountAmount || '0.00',
           shippingAmount: updatedOrder.shippingAmount || '0.00',
           totalAmount: updatedOrder.totalAmount,
-          shippingAddress: request.shippingAddress,
-          billingAddress,
+          shippingAddress: resolvedShippingAddress,
+          billingAddress: resolvedBillingAddress,
           items: formattedItems,
           createdAt: updatedOrder.createdAt,
           updatedAt: updatedOrder.updatedAt,

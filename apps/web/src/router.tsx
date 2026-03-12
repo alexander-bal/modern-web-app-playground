@@ -1,6 +1,7 @@
 import { createBrowserRouter } from 'react-router-dom';
 import { RequireAuth } from './components/require-auth';
 import { RootLayout } from './layouts/root-layout';
+import { AddressesPage } from './pages/addresses-page';
 import { CartPage } from './pages/cart';
 import { CheckoutPage } from './pages/checkout';
 import { LoginPage } from './pages/login';
@@ -61,6 +62,14 @@ export const router = createBrowserRouter([
         element: (
           <RequireAuth>
             <OrderConfirmationPage />
+          </RequireAuth>
+        ),
+      },
+      {
+        path: 'account/addresses',
+        element: (
+          <RequireAuth>
+            <AddressesPage />
           </RequireAuth>
         ),
       },

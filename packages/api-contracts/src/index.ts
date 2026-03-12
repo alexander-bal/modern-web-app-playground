@@ -1,3 +1,5 @@
+export { addressesContract } from './addresses/contract.js';
+export * from './addresses/schemas.js';
 export { authContract } from './auth/contract.js';
 export {
   type LoginInput,
