@@ -1,6 +1,6 @@
 # Monorepo Task Orchestration with Turborepo
 
-**Status:** proposed
+**Status:** accepted
 **Date:** 2026-04-11 14:30
 
 ## Context

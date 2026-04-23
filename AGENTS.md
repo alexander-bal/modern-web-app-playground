@@ -4,11 +4,12 @@ E-commerce system (Mercado).
 
 ## Monorepo Structure
 
-This project uses a **pnpm workspace monorepo**:
+This project uses a **pnpm workspace monorepo** with **Turborepo** for task orchestration:
 - `apps/backend/` — Fastify 5 HTTP server (package name: `@mercado/backend`)
 - `apps/web/` — React + Vite frontend (package name: `@mercado/web`)
 - `packages/api-contracts/` — Shared ts-rest API contracts consumed by both apps
-- Run commands from root: `pnpm <command>` automatically targets the backend package
+- `turbo.json` at root defines the task dependency graph, caching, and parallel execution
+- Run commands from root: `pnpm <command>` — scripts like `build`, `lint`, `typecheck`, `test` use `turbo run` under the hood
 
 ## Project Stack
 
@@ -36,7 +37,7 @@ make web          # Start/restart web only
 
 ```bash
 pnpm dev              # Start backend in watch mode
-pnpm build            # Compile contracts + backend
+pnpm build            # Build all packages (turbo — contracts before backend)
 pnpm test             # Run backend unit tests
 pnpm test:smoke       # Verify server starts and health endpoints respond
 ```
@@ -106,7 +107,7 @@ After modifying `env.ts`, `app.ts`, `server.ts`, `db/connection.ts`, `src/infra/
 
 ## Code Style
 
-Biome (formatting) + ESLint (linting). Run `pnpm lint` for both.
+Biome (formatting) + ESLint (linting). Run `pnpm lint` for both (runs in parallel via Turborepo).
 
 ## Coding Conventions
 

@@ -24,22 +24,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Cache turbo
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+
       - name: Format
         run: pnpm run format:check
 
-      - name: Lint
-        run: |
-          pnpm run lint:biome
-          pnpm --filter @mercado/backend lint:eslint
-
-      - name: Type check
-        run: pnpm --filter @mercado/backend typecheck
-
-      - name: Type coverage
-        run: pnpm --filter @mercado/backend type-coverage
-
       - name: Build
-        run: pnpm --filter @mercado/backend build
+        run: turbo run build
+
+      - name: Static checks
+        run: turbo run typecheck lint:biome lint:eslint type-coverage
 
       - name: Security audit
         run: pnpm audit --audit-level moderate
