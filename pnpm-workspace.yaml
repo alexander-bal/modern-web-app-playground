@@ -21,6 +21,15 @@ peerDependencyRules:
   allowedVersions:
     '@ts-rest/fastify>fastify': '5'
 
+audit:
+  ignore:
+    # ts-deepmerge prototype-method-override DoS. No upstream fix exists: every
+    # @anatine/zod-openapi release pins ts-deepmerge ^6.0.3, and overriding it to >=8.0.0
+    # breaks the boot path — 7.0.0 dropped the default export that zod-openapi imports.
+    # generateOpenApi() runs at startup over static ts-rest contracts, so the merge never
+    # sees request data. Drop this once zod-openapi moves off ts-deepmerge 6.
+    - GHSA-87mf-gv2c-c62c
+
 minimumReleaseAge: 10080 # 7 days — delay installing versions published more recently than this
 minimumReleaseAgeStrict: true # fail install rather than silently falling back to an older version
 allowBuilds:
