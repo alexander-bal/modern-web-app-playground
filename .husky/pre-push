@@ -28,6 +28,12 @@ pnpm spell || {
   exit 1
 }
 
+echo "Checking lint..."
+pnpm lint || {
+  echo "❌ Lint failed. Fix the errors or run 'pnpm lint:fix' to auto-fix."
+  exit 1
+}
+
 echo "Building all packages..."
 pnpm build || {
   echo "❌ Build failed. Fix the errors or run 'pnpm build' to reproduce."
