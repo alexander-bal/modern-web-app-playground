@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestOrderItem } from '../../../../tests/factories/order-items.js';
 import { createTestOrder } from '../../../../tests/factories/orders.js';
 import { createTestProduct } from '../../../../tests/factories/products.js';
@@ -7,6 +7,13 @@ import { createAuthenticatedUser } from '../../../../tests/helpers/auth.js';
 import { buildTestApp } from '../../../app.js';
 import { db, orderItems, orders, products, sessions, users } from '../../../db/index.js';
 import type { Product } from '../../products/index.js';
+import {
+  CheckoutAddressNotFoundError,
+  checkoutService,
+  InactiveProductError,
+  OrderNotCheckoutEligibleError,
+  OrderNumberGenerationError,
+} from '../services/checkout.service.js';
 
 describe('Checkout Routes', () => {
   let fastify: FastifyInstance;
@@ -30,6 +37,7 @@ describe('Checkout Routes', () => {
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     await db.delete(orderItems);
     await db.delete(orders);
     await db.delete(sessions);
@@ -334,6 +342,57 @@ describe('Checkout Routes', () => {
       });
 
       expect(response.statusCode).toBe(400);
+    });
+  });
+
+  describe('service error mapping', () => {
+    const payload = {
+      shippingAddress: {
+        fullName: 'John Doe',
+        addressLine1: '123 Main St',
+        city: 'New York',
+        postalCode: '10001',
+        countryCode: 'US',
+      },
+      billingSameAsShipping: true,
+    };
+
+    async function checkoutRejectingWith(error: Error) {
+      vi.spyOn(checkoutService, 'checkout').mockRejectedValue(error);
+      return fastify.inject({
+        method: 'POST',
+        url: '/api/checkout',
+        cookies: { sid: sessionToken },
+        payload,
+      });
+    }
+
+    it('reports unavailable products as 422 naming each product', async () => {
+      const response = await checkoutRejectingWith(new InactiveProductError(['Widget', 'Gadget']));
+
+      expect(response.statusCode).toBe(422);
+      expect(response.body).toContain('Widget');
+      expect(response.body).toContain('Gadget');
+    });
+
+    it('reports an order that cannot be checked out as 422', async () => {
+      const response = await checkoutRejectingWith(new OrderNotCheckoutEligibleError('shipped'));
+
+      expect(response.statusCode).toBe(422);
+      expect(response.body).toContain('shipped');
+    });
+
+    it('reports a missing saved address as 422', async () => {
+      const response = await checkoutRejectingWith(new CheckoutAddressNotFoundError('shipping'));
+
+      expect(response.statusCode).toBe(422);
+      expect(response.body).toContain('Shipping address not found');
+    });
+
+    it('reports exhausted order-number generation as 500', async () => {
+      const response = await checkoutRejectingWith(new OrderNumberGenerationError());
+
+      expect(response.statusCode).toBe(500);
     });
   });
 });

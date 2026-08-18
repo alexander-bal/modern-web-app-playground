@@ -6,9 +6,11 @@ import { db, orderItems, orders, products } from '../../../db/index.js';
 import type { Product } from '../../products/index.js';
 import {
   CartNotFoundError,
+  CheckoutAddressNotFoundError,
   checkout,
   EmptyCartError,
   InactiveProductError,
+  OrderNumberGenerationError,
   OrderNotCheckoutEligibleError,
 } from './checkout.service.js';
 
@@ -413,5 +415,125 @@ describe('Checkout Service', () => {
     });
 
     expect(updatedOrder?.cartToken).toBeNull();
+  });
+
+  describe('re-checkout of an already confirmed order', () => {
+    const storedShipping = {
+      fullName: 'Ada Lovelace',
+      addressLine1: '12 Analytical Way',
+      city: 'London',
+      postalCode: 'EC1A',
+      countryCode: 'GB',
+    };
+    const storedBilling = { ...storedShipping, fullName: 'Ada L. Billing' };
+
+    it('returns the existing order instead of confirming a second time', async () => {
+      const confirmed = await createTestOrder({
+        status: 'confirmed',
+        userId: TEST_USER_ID,
+        orderNumber: 'ORD-20260101-00042',
+        subtotal: '75.00',
+        totalAmount: '75.00',
+        currency: 'EUR',
+        shippingAddress: JSON.stringify(storedShipping),
+        billingAddress: JSON.stringify(storedBilling),
+      });
+
+      await createTestOrderItem({
+        orderId: confirmed.id,
+        productId: testProduct.id,
+        quantity: '2',
+        unitPrice: '75.00',
+        currency: 'EUR',
+        productName: testProduct.name,
+        productSku: testProduct.sku,
+      });
+
+      const result = await checkout(
+        TEST_USER_ID,
+        {
+          shippingAddress: {
+            fullName: 'Ignored Person',
+            addressLine1: '1 Ignored Rd',
+            city: 'Nowhere',
+            postalCode: '00000',
+            countryCode: 'US',
+          },
+          billingSameAsShipping: true,
+        },
+        undefined,
+        db
+      );
+
+      expect(result.id).toBe(confirmed.id);
+      expect(result.orderNumber).toBe('ORD-20260101-00042');
+      expect(result.shippingAddress.fullName).toBe('Ada Lovelace');
+      expect(result.billingAddress.fullName).toBe('Ada L. Billing');
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]?.quantity).toBe(2);
+      expect(result.items[0]?.lineTotal).toBe('150.00');
+    });
+
+    it('refuses to return a confirmed order whose stored addresses are missing', async () => {
+      const confirmed = await createTestOrder({
+        status: 'confirmed',
+        userId: TEST_USER_ID,
+        subtotal: '75.00',
+        totalAmount: '75.00',
+        currency: 'EUR',
+        shippingAddress: null,
+        billingAddress: null,
+      });
+
+      await createTestOrderItem({
+        orderId: confirmed.id,
+        productId: testProduct.id,
+        quantity: '1',
+        unitPrice: '75.00',
+        currency: 'EUR',
+        productName: testProduct.name,
+        productSku: testProduct.sku,
+      });
+
+      await expect(
+        checkout(
+          TEST_USER_ID,
+          { shippingAddress: storedShipping, billingSameAsShipping: true },
+          undefined,
+          db
+        )
+      ).rejects.toThrow('Confirmed order missing address data');
+    });
+  });
+
+  describe('checkout error messages', () => {
+    it('lists every unavailable product name', () => {
+      const error = new InactiveProductError(['Widget', 'Gadget']);
+
+      expect(error.name).toBe('InactiveProductError');
+      expect(error.productNames).toEqual(['Widget', 'Gadget']);
+      expect(error.message).toBe('The following items are no longer available: Widget, Gadget');
+    });
+
+    it('names which of the two addresses was not found', () => {
+      expect(new CheckoutAddressNotFoundError('shipping').message).toBe(
+        'Shipping address not found'
+      );
+      expect(new CheckoutAddressNotFoundError('billing').message).toBe('Billing address not found');
+    });
+
+    it('reports the blocking status when an order is not eligible', () => {
+      const error = new OrderNotCheckoutEligibleError('shipped');
+
+      expect(error.name).toBe('OrderNotCheckoutEligibleError');
+      expect(error.message).toBe('Order cannot be checked out (current status: shipped)');
+    });
+
+    it('offers a retry hint by default and honours an explicit message', () => {
+      expect(new OrderNumberGenerationError().message).toBe(
+        'Unable to generate order number, please try again'
+      );
+      expect(new OrderNumberGenerationError('exhausted').message).toBe('exhausted');
+    });
   });
 });

@@ -1,11 +1,17 @@
 import argon2 from 'argon2';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestProduct } from '../../../../tests/factories/products.js';
 import { createTestSession } from '../../../../tests/factories/sessions.js';
 import { createTestUser } from '../../../../tests/factories/users.js';
 import { buildTestApp } from '../../../app.js';
 import { db, orderItems, orders, products, sessions, users } from '../../../db/index.js';
 import { addItemToCart } from '../../cart/index.js';
+import {
+  authService,
+  SessionExpiredError,
+  SessionNotFoundError,
+  UserNotFoundError,
+} from '../services/auth.service.js';
 
 describe('Auth Routes Integration', () => {
   let app: Awaited<ReturnType<typeof buildTestApp>>;
@@ -15,6 +21,7 @@ describe('Auth Routes Integration', () => {
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     await db.delete(orderItems);
     await db.delete(orders);
     await db.delete(sessions);
@@ -328,6 +335,89 @@ describe('Auth Routes Integration', () => {
       });
 
       expect(response.statusCode).toBe(401);
+    });
+  });
+
+  describe('unexpected service failures', () => {
+    const registerPayload = {
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+      email: 'ada@example.com',
+      password: 'password123',
+    };
+
+    it('returns 500 when registration fails for a reason other than a taken email', async () => {
+      vi.spyOn(authService, 'register').mockRejectedValue(new Error('connection reset'));
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/auth/register',
+        payload: registerPayload,
+      });
+
+      expect(response.statusCode).toBe(500);
+      expect(response.json()).toEqual({ error: 'Internal server error' });
+      expect(response.body).not.toContain('connection reset');
+    });
+
+    it('returns 500 when login fails for a reason other than bad credentials', async () => {
+      vi.spyOn(authService, 'login').mockRejectedValue(new Error('connection reset'));
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: { email: 'ada@example.com', password: 'password123' },
+      });
+
+      expect(response.statusCode).toBe(500);
+      expect(response.json()).toEqual({ error: 'Internal server error' });
+      expect(response.body).not.toContain('connection reset');
+    });
+
+    it.each([
+      ['an unknown session', new SessionNotFoundError()],
+      ['an expired session', new SessionExpiredError()],
+    ])('answers /me with 401 for %s', async (_label, error) => {
+      vi.spyOn(authService, 'validateSession').mockRejectedValue(error);
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/auth/me',
+        cookies: { sid: 'some-session-token' },
+      });
+
+      expect(response.statusCode).toBe(401);
+      expect(response.json()).toEqual({ error: 'Authentication required' });
+    });
+
+    it('answers /me with 401 when the session resolves to a deleted user', async () => {
+      vi.spyOn(authService, 'validateSession').mockResolvedValue({
+        id: '00000000-0000-0000-0000-0000000000aa',
+      } as Awaited<ReturnType<typeof authService.validateSession>>);
+      vi.spyOn(authService, 'getMe').mockRejectedValue(new UserNotFoundError());
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/auth/me',
+        cookies: { sid: 'some-session-token' },
+      });
+
+      expect(response.statusCode).toBe(401);
+      expect(response.json()).toEqual({ error: 'User not found' });
+    });
+
+    it('answers /me with 500 when session validation fails unexpectedly', async () => {
+      vi.spyOn(authService, 'validateSession').mockRejectedValue(new Error('connection reset'));
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/auth/me',
+        cookies: { sid: 'some-session-token' },
+      });
+
+      expect(response.statusCode).toBe(500);
+      expect(response.json()).toEqual({ error: 'Internal server error' });
+      expect(response.body).not.toContain('connection reset');
     });
   });
 });

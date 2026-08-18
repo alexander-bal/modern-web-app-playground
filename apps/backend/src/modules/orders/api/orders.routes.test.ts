@@ -1,11 +1,16 @@
 import type { FastifyInstance } from 'fastify';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestOrderItem } from '../../../../tests/factories/order-items.js';
 import { createTestOrder } from '../../../../tests/factories/orders.js';
 import { createTestProduct } from '../../../../tests/factories/products.js';
 import { createAuthenticatedUser } from '../../../../tests/helpers/auth.js';
 import { buildTestApp } from '../../../app.js';
 import { db, sessions, users } from '../../../db/index.js';
+import {
+  OrderNotFoundError,
+  OrderValidationError,
+  ordersService,
+} from '../services/orders.service.js';
 
 // Type definitions for API responses
 type OrderResponse = {
@@ -57,6 +62,7 @@ describe('Orders Routes - Integration Tests', () => {
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     await db.delete(sessions);
     await db.delete(users);
     if (fastify) {
@@ -553,6 +559,143 @@ describe('Orders Routes - Integration Tests', () => {
 
         expect(response.statusCode).toBe(401);
       });
+    });
+  });
+
+  describe('service error mapping', () => {
+    const MISSING_ID = '00000000-0000-0000-0000-0000000000ff';
+    const validCreateBody = {
+      orderNumber: 'ORD-MAPPING-1',
+      orderDate: '2024-01-15',
+      currency: 'EUR',
+      subtotal: 100.0,
+      totalAmount: 100.0,
+    };
+
+    it('maps a duplicate-flavoured validation error on create to 409', async () => {
+      vi.spyOn(ordersService, 'create').mockRejectedValue(
+        new OrderValidationError('Duplicate order number')
+      );
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/api/orders',
+        cookies: { sid: sessionToken },
+        payload: validCreateBody,
+      });
+
+      expect(response.statusCode).toBe(409);
+    });
+
+    it('maps an "already exists" validation error on create to 409', async () => {
+      vi.spyOn(ordersService, 'create').mockRejectedValue(
+        new OrderValidationError('An order with this number already exists')
+      );
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/api/orders',
+        cookies: { sid: sessionToken },
+        payload: validCreateBody,
+      });
+
+      expect(response.statusCode).toBe(409);
+    });
+
+    it('maps any other validation error on create to 400', async () => {
+      vi.spyOn(ordersService, 'create').mockRejectedValue(
+        new OrderValidationError('Currency is not supported')
+      );
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/api/orders',
+        cookies: { sid: sessionToken },
+        payload: validCreateBody,
+      });
+
+      expect(response.statusCode).toBe(400);
+    });
+
+    it('maps a missing order on getById to 404', async () => {
+      vi.spyOn(ordersService, 'getById').mockRejectedValue(new OrderNotFoundError(MISSING_ID));
+
+      const response = await fastify.inject({
+        method: 'GET',
+        url: `/api/orders/${MISSING_ID}`,
+        cookies: { sid: sessionToken },
+      });
+
+      expect(response.statusCode).toBe(404);
+    });
+
+    it('maps a missing order on update to 404', async () => {
+      vi.spyOn(ordersService, 'update').mockRejectedValue(new OrderNotFoundError(MISSING_ID));
+
+      const response = await fastify.inject({
+        method: 'PATCH',
+        url: `/api/orders/${MISSING_ID}`,
+        cookies: { sid: sessionToken },
+        payload: { notes: 'updated' },
+      });
+
+      expect(response.statusCode).toBe(404);
+    });
+
+    it('maps a duplicate-flavoured validation error on update to 409', async () => {
+      vi.spyOn(ordersService, 'update').mockRejectedValue(
+        new OrderValidationError('Duplicate order number')
+      );
+
+      const response = await fastify.inject({
+        method: 'PATCH',
+        url: `/api/orders/${MISSING_ID}`,
+        cookies: { sid: sessionToken },
+        payload: { orderNumber: 'ORD-TAKEN' },
+      });
+
+      expect(response.statusCode).toBe(409);
+    });
+
+    it('maps any other validation error on update to 400', async () => {
+      vi.spyOn(ordersService, 'update').mockRejectedValue(
+        new OrderValidationError('Status transition not allowed')
+      );
+
+      const response = await fastify.inject({
+        method: 'PATCH',
+        url: `/api/orders/${MISSING_ID}`,
+        cookies: { sid: sessionToken },
+        payload: { notes: 'updated' },
+      });
+
+      expect(response.statusCode).toBe(400);
+    });
+
+    it('maps a missing order on delete to 404', async () => {
+      vi.spyOn(ordersService, 'delete').mockRejectedValue(new OrderNotFoundError(MISSING_ID));
+
+      const response = await fastify.inject({
+        method: 'DELETE',
+        url: `/api/orders/${MISSING_ID}`,
+        cookies: { sid: sessionToken },
+      });
+
+      expect(response.statusCode).toBe(404);
+    });
+
+    it('maps a missing order on getByOrderNumber to 404', async () => {
+      vi.spyOn(ordersService, 'getByOrderNumber').mockRejectedValue(
+        new OrderNotFoundError('ORD-NOPE')
+      );
+
+      const response = await fastify.inject({
+        method: 'GET',
+        url: '/api/orders/by-number/ORD-NOPE',
+        cookies: { sid: sessionToken },
+      });
+
+      expect(response.statusCode).toBe(404);
     });
   });
 });
