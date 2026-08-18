@@ -15,7 +15,7 @@ const unusedVarsRule = {
 };
 
 export default defineConfig([
-  globalIgnores(['dist', 'public/mockServiceWorker.js']),
+  globalIgnores(['dist', 'coverage', 'public/mockServiceWorker.js']),
   {
     files: ['**/*.{ts,tsx}'],
     ignores: ['e2e/**', 'tests-integration/**'],

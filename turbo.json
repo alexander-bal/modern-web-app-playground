@@ -20,13 +20,13 @@
     "test": {
       "dependsOn": ["^build"],
       "outputs": [],
-      "inputs": ["src/**", "tests/**", "test/**"],
+      "inputs": ["src/**", "tests/**", "test/**", "vitest.config.ts", "vitest.setup.ts"],
       "env": ["DATABASE_URL", "NODE_ENV"]
     },
     "test:coverage": {
       "dependsOn": ["^build"],
       "outputs": ["coverage/**"],
-      "inputs": ["src/**", "tests/**", "test/**"],
+      "inputs": ["src/**", "tests/**", "test/**", "vitest.config.ts", "vitest.setup.ts"],
       "env": ["DATABASE_URL", "NODE_ENV"]
     },
     "type-coverage": {

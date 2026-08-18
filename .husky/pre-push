@@ -54,8 +54,11 @@ pnpm knip || {
   exit 1
 }
 
-echo "Running unit tests..."
-pnpm test || {
-  echo "❌ Unit tests failed. Fix the failing tests before pushing."
+echo "Running unit tests with coverage..."
+# test:coverage rather than test: the coverage thresholds in vitest.config.ts are only
+# evaluated when vitest runs with --coverage, so plain `pnpm test` passes regardless of them.
+pnpm test:coverage || {
+  echo "❌ Unit tests failed, or coverage fell below the thresholds in vitest.config.ts."
+  echo "Fix the failing tests, or cover the untested code before pushing."
   exit 1
 }
