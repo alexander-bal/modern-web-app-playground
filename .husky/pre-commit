@@ -35,6 +35,12 @@ pnpm typecheck || {
   exit 1
 }
 
+echo "Building all packages..."
+pnpm build || {
+  echo "❌ Build failed. Fix the errors or run 'pnpm build' to reproduce."
+  exit 1
+}
+
 echo "Checking type coverage..."
 pnpm type-coverage || {
   echo "❌ Type coverage check failed. Current coverage is below the required 97%."
