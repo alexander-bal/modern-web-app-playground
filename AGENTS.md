@@ -99,7 +99,7 @@ Session-cookie auth. Routes requiring auth are wrapped with the auth plugin at r
 
 ### Database Migrations
 
-**Never manually create or edit migration files** — Drizzle-kit tracks via `meta/_journal.json`; manual `.sql` files are silently ignored. Workflow: edit `src/db/schema-local.ts` → `pnpm db:generate` → review SQL → `pnpm db:migrate`.
+**Never manually create or edit migration files** — Drizzle-kit tracks via `meta/_journal.json`; manual `.sql` files are silently ignored. Workflow: edit `src/db/schema.ts` → `pnpm db:generate` → review SQL → `pnpm db:migrate`.
 
 ### Infrastructure Changes
 

@@ -16,7 +16,7 @@ Only modify these files via `drizzle-kit` commands:
 
 ## Workflow for Schema Changes
 
-1. Modify schema in `apps/backend/src/db/schema-local.ts`
+1. Modify schema in `apps/backend/src/db/schema.ts`
 2. Run `pnpm db:generate` to generate the migration
 3. Review the generated SQL
 4. Run `pnpm db:migrate` (dev) or `pnpm db:migrate:test` (test)
