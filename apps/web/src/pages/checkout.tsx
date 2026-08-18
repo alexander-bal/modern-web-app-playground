@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { isDefinedError } from '@orpc/client';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert';
@@ -13,7 +14,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
 import noPhoto from '../assets/no-photo.svg';
-import { tsr } from '../lib/api-client';
+import { orpc } from '../lib/api-client';
 
 interface AddressFormData {
   fullName: string;
@@ -134,13 +135,10 @@ export function CheckoutPage() {
   const [userBillingId, setSelectedBillingId] = useState<string | null>(null);
   const [saveBillingAddress, setSaveBillingAddress] = useState(false);
 
-  const { data: cartData, isPending: cartPending } = tsr.cart.getCart.useQuery({
-    queryKey: ['cart'],
-  });
-  const { data: addressesData } = tsr.addresses.list.useQuery({ queryKey: ['addresses'] });
+  const { data: cart, isPending: cartPending } = useQuery(orpc.cart.getCart.queryOptions());
+  const { data: addressesData } = useQuery(orpc.addresses.list.queryOptions());
 
-  const cart = cartData?.status === 200 ? cartData.body : null;
-  const savedAddresses = addressesData?.status === 200 ? addressesData.body.addresses : [];
+  const savedAddresses = addressesData?.addresses ?? [];
 
   // Derived: once addresses load, auto-select default; user can override
   const defaultAddress = savedAddresses.find((a) => a.isDefault) ?? savedAddresses[0] ?? null;
@@ -210,29 +208,31 @@ export function CheckoutPage() {
     phone: addr.phone || undefined,
   });
 
-  const checkoutMutation = tsr.checkout.checkout.useMutation({
-    onSuccess: (response) => {
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      queryClient.invalidateQueries({ queryKey: ['addresses'] });
-      navigate(`/orders/${response.body.orderNumber}/confirmation`);
-    },
-    onError: (err) => {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else if (err.status === 400) {
-        setError(err.body.error || 'Invalid request. Please check your input.');
-      } else if (err.status === 422) {
-        setError(err.body.error);
-      } else if (err.status === 404) {
-        setError('Cart not found. Please add items to your cart.');
-      } else if (err.status === 401) {
-        setError('Please log in to complete your order.');
-      } else {
-        setError('Failed to place order. Please try again.');
-      }
-    },
-  });
+  const checkoutMutation = useMutation(
+    orpc.checkout.checkout.mutationOptions({
+      onSuccess: (response) => {
+        queryClient.invalidateQueries({ queryKey: orpc.cart.getCart.queryKey() });
+        queryClient.invalidateQueries({ queryKey: orpc.orders.listMyOrders.queryKey() });
+        queryClient.invalidateQueries({ queryKey: orpc.addresses.list.queryKey() });
+        navigate(`/orders/${response.orderNumber}/confirmation`);
+      },
+      onError: (err) => {
+        if (isDefinedError(err)) {
+          if (err.code === 'VALIDATION_ERROR' || err.code === 'UNPROCESSABLE_ENTITY') {
+            setError(err.data.error || 'Invalid request. Please check your input.');
+          } else if (err.code === 'NOT_FOUND') {
+            setError('Cart not found. Please add items to your cart.');
+          } else if (err.code === 'UNAUTHORIZED') {
+            setError('Please log in to complete your order.');
+          } else {
+            setError('Failed to place order. Please try again.');
+          }
+        } else {
+          setError('Failed to place order. Please try again.');
+        }
+      },
+    })
+  );
 
   const handlePlaceOrder = () => {
     if (!validateForm()) {
@@ -254,11 +254,9 @@ export function CheckoutPage() {
         : { billingAddress: buildAddress(billingAddress), saveBillingAddress };
 
     checkoutMutation.mutate({
-      body: {
-        ...shippingPart,
-        billingSameAsShipping,
-        ...billingPart,
-      },
+      ...shippingPart,
+      billingSameAsShipping,
+      ...billingPart,
     });
   };
 

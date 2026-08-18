@@ -1,12 +1,6 @@
-import { initContract } from '@ts-rest/core';
+import { oc } from '@orpc/contract';
 import { z } from 'zod';
-import {
-  conflictErrorSchema,
-  internalErrorSchema,
-  notFoundErrorSchema,
-  unauthorizedErrorSchema,
-  validationErrorSchema,
-} from '../shared/errors.js';
+import { commonErrors } from '../shared/errors.js';
 import {
   createOrderSchema,
   listOrdersQuerySchema,
@@ -18,116 +12,87 @@ import {
   updateOrderSchema,
 } from './schemas.js';
 
-const c = initContract();
+const create = oc
+  .route({ method: 'POST', path: '/', successStatus: 201, summary: 'Create a new order' })
+  .input(createOrderSchema)
+  .output(orderResponseSchema)
+  .errors({
+    VALIDATION_ERROR: commonErrors.VALIDATION_ERROR,
+    CONFLICT: commonErrors.CONFLICT,
+  });
 
-export const ordersContract = c.router({
-  create: {
-    method: 'POST',
-    path: '/api/orders',
-    responses: {
-      201: orderResponseSchema,
-      400: validationErrorSchema,
-      409: conflictErrorSchema,
-      500: internalErrorSchema,
-    },
-    body: createOrderSchema,
-    summary: 'Create a new order',
-    description: 'Creates a new order with the provided data',
-  },
+const listMyOrders = oc
+  .route({ method: 'GET', path: '/me', summary: 'List my orders' })
+  .output(z.object({ orders: z.array(orderWithItemsResponseSchema) }))
+  .errors({
+    UNAUTHORIZED: commonErrors.UNAUTHORIZED,
+  });
 
-  listMyOrders: {
-    method: 'GET',
-    path: '/api/orders/me',
-    responses: {
-      200: z.object({ orders: z.array(orderWithItemsResponseSchema) }),
-      401: unauthorizedErrorSchema,
-      500: internalErrorSchema,
-    },
-    summary: 'List my orders',
-    description: 'Retrieves all orders for the authenticated user, including order items',
-  },
+const getById = oc
+  .route({ method: 'GET', path: '/{id}', summary: 'Get an order by ID' })
+  .input(z.object({ id: orderIdSchema }))
+  .output(orderResponseSchema)
+  .errors({
+    VALIDATION_ERROR: commonErrors.VALIDATION_ERROR,
+    UNAUTHORIZED: commonErrors.UNAUTHORIZED,
+    NOT_FOUND: commonErrors.NOT_FOUND,
+  });
 
-  getById: {
-    method: 'GET',
-    path: '/api/orders/:id',
-    responses: {
-      200: orderResponseSchema,
-      400: validationErrorSchema,
-      401: unauthorizedErrorSchema,
-      404: notFoundErrorSchema,
-      500: internalErrorSchema,
-    },
-    pathParams: z.object({
-      id: orderIdSchema,
-    }),
-    summary: 'Get an order by ID',
-    description: 'Retrieves a single order by its unique identifier',
-  },
+const list = oc
+  .route({ method: 'GET', path: '/', summary: 'List all orders' })
+  .input(listOrdersQuerySchema)
+  .output(ordersListResponseSchema)
+  .errors({
+    VALIDATION_ERROR: commonErrors.VALIDATION_ERROR,
+    UNAUTHORIZED: commonErrors.UNAUTHORIZED,
+  });
 
-  list: {
-    method: 'GET',
-    path: '/api/orders',
-    responses: {
-      200: ordersListResponseSchema,
-      400: validationErrorSchema,
-      401: unauthorizedErrorSchema,
-      500: internalErrorSchema,
-    },
-    query: listOrdersQuerySchema,
-    summary: 'List all orders',
-    description: 'Retrieves all orders with optional filtering by status',
-  },
-
-  update: {
+const update = oc
+  .route({
     method: 'PATCH',
-    path: '/api/orders/:id',
-    responses: {
-      200: orderResponseSchema,
-      400: validationErrorSchema,
-      401: unauthorizedErrorSchema,
-      404: notFoundErrorSchema,
-      409: conflictErrorSchema,
-      500: internalErrorSchema,
-    },
-    pathParams: z.object({
-      id: orderIdSchema,
-    }),
-    body: updateOrderSchema,
+    path: '/{id}',
+    inputStructure: 'detailed',
     summary: 'Update an order',
-    description: 'Updates an existing order with partial data',
-  },
+  })
+  .input(z.object({ params: z.object({ id: orderIdSchema }), body: updateOrderSchema }))
+  .output(orderResponseSchema)
+  .errors({
+    VALIDATION_ERROR: commonErrors.VALIDATION_ERROR,
+    UNAUTHORIZED: commonErrors.UNAUTHORIZED,
+    NOT_FOUND: commonErrors.NOT_FOUND,
+    CONFLICT: commonErrors.CONFLICT,
+  });
 
-  delete: {
-    method: 'DELETE',
-    path: '/api/orders/:id',
-    responses: {
-      200: orderDeleteResponseSchema,
-      400: validationErrorSchema,
-      401: unauthorizedErrorSchema,
-      404: notFoundErrorSchema,
-      500: internalErrorSchema,
-    },
-    pathParams: z.object({
-      id: orderIdSchema,
-    }),
-    summary: 'Delete an order',
-    description: 'Permanently deletes an order from the database',
-  },
+const deleteOrder = oc
+  .route({ method: 'DELETE', path: '/{id}', summary: 'Delete an order' })
+  .input(z.object({ id: orderIdSchema }))
+  .output(orderDeleteResponseSchema)
+  .errors({
+    VALIDATION_ERROR: commonErrors.VALIDATION_ERROR,
+    UNAUTHORIZED: commonErrors.UNAUTHORIZED,
+    NOT_FOUND: commonErrors.NOT_FOUND,
+  });
 
-  getByOrderNumber: {
+const getByOrderNumber = oc
+  .route({
     method: 'GET',
-    path: '/api/orders/by-number/:orderNumber',
-    responses: {
-      200: orderWithItemsResponseSchema,
-      400: validationErrorSchema,
-      401: unauthorizedErrorSchema,
-      404: notFoundErrorSchema,
-      500: internalErrorSchema,
-    },
-    pathParams: z.object({
-      orderNumber: z.string().min(1, 'Order number is required'),
-    }),
+    path: '/by-number/{orderNumber}',
     summary: 'Get an order by order number',
-    description: 'Retrieves a single order by its order number, including items',
-  },
-});
+  })
+  .input(z.object({ orderNumber: z.string().min(1, 'Order number is required') }))
+  .output(orderWithItemsResponseSchema)
+  .errors({
+    VALIDATION_ERROR: commonErrors.VALIDATION_ERROR,
+    UNAUTHORIZED: commonErrors.UNAUTHORIZED,
+    NOT_FOUND: commonErrors.NOT_FOUND,
+  });
+
+export const ordersOrpcContract = {
+  create,
+  listMyOrders,
+  getById,
+  list,
+  update,
+  delete: deleteOrder,
+  getByOrderNumber,
+};

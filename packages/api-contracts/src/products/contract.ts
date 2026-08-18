@@ -1,10 +1,6 @@
-import { initContract } from '@ts-rest/core';
+import { oc } from '@orpc/contract';
 import { z } from 'zod';
-import {
-  internalErrorSchema,
-  notFoundErrorSchema,
-  validationErrorSchema,
-} from '../shared/errors.js';
+import { commonErrors } from '../shared/errors.js';
 import {
   listProductsQuerySchema,
   productResponseSchema,
@@ -12,47 +8,32 @@ import {
   searchProductsQuerySchema,
 } from './schemas.js';
 
-const c = initContract();
+const list = oc
+  .route({ method: 'GET', path: '/', summary: 'List all products' })
+  .input(listProductsQuerySchema)
+  .output(productsListResponseSchema)
+  .errors({
+    VALIDATION_ERROR: commonErrors.VALIDATION_ERROR,
+  });
 
-export const productsContract = c.router({
-  list: {
-    method: 'GET',
-    path: '/api/products',
-    responses: {
-      200: productsListResponseSchema,
-      400: validationErrorSchema,
-      500: internalErrorSchema,
-    },
-    query: listProductsQuerySchema,
-    summary: 'List all products',
-    description: 'Retrieves all products with optional filtering by status and category',
-  },
+const getBySlug = oc
+  .route({ method: 'GET', path: '/by-slug/{slug}', summary: 'Get a product by slug' })
+  .input(z.object({ slug: z.string() }))
+  .output(productResponseSchema)
+  .errors({
+    NOT_FOUND: commonErrors.NOT_FOUND,
+  });
 
-  getBySlug: {
-    method: 'GET',
-    path: '/api/products/by-slug/:slug',
-    responses: {
-      200: productResponseSchema,
-      404: notFoundErrorSchema,
-      500: internalErrorSchema,
-    },
-    pathParams: z.object({
-      slug: z.string(),
-    }),
-    summary: 'Get a product by slug',
-    description: 'Retrieves a single product by its URL-friendly slug',
-  },
+const search = oc
+  .route({ method: 'GET', path: '/search', summary: 'Search products' })
+  .input(searchProductsQuerySchema)
+  .output(productsListResponseSchema)
+  .errors({
+    VALIDATION_ERROR: commonErrors.VALIDATION_ERROR,
+  });
 
-  search: {
-    method: 'GET',
-    path: '/api/products/search',
-    responses: {
-      200: productsListResponseSchema,
-      400: validationErrorSchema,
-      500: internalErrorSchema,
-    },
-    query: searchProductsQuerySchema,
-    summary: 'Search products',
-    description: 'Search products by keywords in name and description with full-text search',
-  },
-});
+export const productsOrpcContract = {
+  list,
+  getBySlug,
+  search,
+};

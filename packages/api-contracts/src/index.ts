@@ -1,6 +1,6 @@
-export { addressesContract } from './addresses/contract.js';
+export { addressesOrpcContract } from './addresses/contract.js';
 export * from './addresses/schemas.js';
-export { authContract } from './auth/contract.js';
+export { authOrpcContract } from './auth/contract.js';
 export {
   type LoginInput,
   loginInputSchema,
@@ -9,14 +9,13 @@ export {
   type UserProfile,
   userProfileSchema,
 } from './auth/schemas.js';
-export { cartContract } from './cart/contract.js';
+export { cartOrpcContract } from './cart/contract.js';
 export * from './cart/schemas.js';
-export { checkoutContract } from './checkout/contract.js';
+export { checkoutOrpcContract } from './checkout/contract.js';
 export * from './checkout/schemas.js';
-export { ordersContract } from './orders/contract.js';
+export { ordersOrpcContract } from './orders/contract.js';
 export * from './orders/schemas.js';
-export { productsContract } from './products/contract.js';
+export { productsOrpcContract } from './products/contract.js';
 export * from './products/schemas.js';
-export { apiContract } from './router.js';
 export * from './shared/errors.js';
 export * from './shared/pagination.js';

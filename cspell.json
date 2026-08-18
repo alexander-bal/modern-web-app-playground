@@ -7,6 +7,8 @@
     "orpc",
     "retarget",
     "retargeted",
+    "APIV",
+    "cutover",
     "upserted",
     "upserts",
     "Upserting",

@@ -1,7 +1,6 @@
-import { checkoutContract } from '@mercado/api-contracts';
-import { initServer } from '@ts-rest/fastify';
-import { tsRestRouterOptions } from '../../../config/server.js';
-import type { FastifyInstance } from 'fastify';
+import { checkoutOrpcContract } from '@mercado/api-contracts';
+import { implement } from '@orpc/server';
+import type { FastifyRequest } from 'fastify';
 import { createModuleLogger } from '../../../lib/logger.js';
 import {
   CartNotFoundError,
@@ -10,100 +9,55 @@ import {
   EmptyCartError,
   InactiveProductError,
   OrderNotCheckoutEligibleError,
-  OrderNumberGenerationError,
 } from '../services/checkout.service.js';
 
 const logger = createModuleLogger('checkout');
 
-const s = initServer();
-
 const CART_TOKEN_COOKIE_NAME = 'cart_token';
 
-const router = s.router(checkoutContract, {
-  checkout: async ({ request, body }) => {
-    try {
-      if (!request.user) {
-        return {
-          status: 401 as const,
-          body: {
-            error: 'Authentication required. Please log in to place an order.',
-          },
-        };
-      }
+export interface CheckoutOrpcContext {
+  userId?: string | undefined;
+  cartToken?: string | undefined;
+}
 
-      const cartToken = request.cookies[CART_TOKEN_COOKIE_NAME];
-      const result = await checkoutService.checkout(request.user.id, body, cartToken);
+export function buildCheckoutOrpcContext(request: FastifyRequest): CheckoutOrpcContext {
+  return {
+    userId: request.user?.id,
+    cartToken: request.cookies[CART_TOKEN_COOKIE_NAME],
+  };
+}
 
-      return {
-        status: 200 as const,
-        body: result,
-      };
-    } catch (error) {
-      if (error instanceof CartNotFoundError) {
-        return {
-          status: 404 as const,
-          body: {
-            error: error.message,
-          },
-        };
-      }
+const os = implement(checkoutOrpcContract).$context<CheckoutOrpcContext>();
 
-      if (error instanceof EmptyCartError) {
-        return {
-          status: 422 as const,
-          body: {
-            error: error.message,
-          },
-        };
-      }
+const checkout = os.checkout.handler(async ({ input, context, errors }) => {
+  if (!context.userId) {
+    throw errors.UNAUTHORIZED({
+      data: { error: 'Authentication required. Please log in to place an order.' },
+    });
+  }
 
-      if (error instanceof InactiveProductError) {
-        return {
-          status: 422 as const,
-          body: {
-            error: error.message,
-          },
-        };
-      }
-
-      if (error instanceof OrderNotCheckoutEligibleError) {
-        return {
-          status: 422 as const,
-          body: {
-            error: error.message,
-          },
-        };
-      }
-
-      if (error instanceof OrderNumberGenerationError) {
-        return {
-          status: 500 as const,
-          body: {
-            error: error.message,
-          },
-        };
-      }
-
-      if (error instanceof CheckoutAddressNotFoundError) {
-        return {
-          status: 422 as const,
-          body: {
-            error: error.message,
-          },
-        };
-      }
-
-      logger.error({ error, body, userId: request.user?.id }, 'Unexpected error in checkout route');
-      return {
-        status: 500 as const,
-        body: {
-          error: 'An unexpected error occurred. Please try again.',
-        },
-      };
+  try {
+    return await checkoutService.checkout(context.userId, input, context.cartToken);
+  } catch (error) {
+    if (error instanceof CartNotFoundError) {
+      throw errors.NOT_FOUND({ data: { error: error.message } });
     }
-  },
+
+    if (
+      error instanceof EmptyCartError ||
+      error instanceof InactiveProductError ||
+      error instanceof OrderNotCheckoutEligibleError ||
+      error instanceof CheckoutAddressNotFoundError
+    ) {
+      throw errors.UNPROCESSABLE_ENTITY({ data: { error: error.message } });
+    }
+
+    logger.error(
+      { error, body: input, userId: context.userId },
+      'Unexpected error in checkout route'
+    );
+    throw error;
+  }
 });
 
-export function registerCheckoutRoutes(fastify: FastifyInstance) {
-  return s.registerRouter(checkoutContract, router, fastify, tsRestRouterOptions);
-}
+export const checkoutOrpcRouter = os.router({ checkout });

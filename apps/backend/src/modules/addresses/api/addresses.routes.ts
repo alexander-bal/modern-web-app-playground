@@ -1,7 +1,5 @@
-import { addressesContract } from '@mercado/api-contracts';
-import { initServer } from '@ts-rest/fastify';
-import { tsRestRouterOptions } from '../../../config/server.js';
-import type { FastifyInstance } from 'fastify';
+import { addressesOrpcContract } from '@mercado/api-contracts';
+import { implement } from '@orpc/server';
 import { createModuleLogger } from '../../../lib/logger.js';
 import {
   AddressLimitError,
@@ -11,77 +9,87 @@ import {
 
 const logger = createModuleLogger('addresses');
 
-const s = initServer();
+export interface AddressesOrpcContext {
+  userId?: string | undefined;
+}
 
-const router = s.router(addressesContract, {
-  list: async ({ request }) => {
-    try {
-      if (!request.user) {
-        return { status: 401 as const, body: { error: 'Authentication required' } };
-      }
-      const addresses = await addressesService.list(request.user.id);
-      return { status: 200 as const, body: { addresses } };
-    } catch (error) {
-      logger.error({ error, userId: request.user?.id }, 'Unexpected error in list addresses');
-      return { status: 500 as const, body: { error: 'Internal server error' } };
-    }
-  },
+const os = implement(addressesOrpcContract).$context<AddressesOrpcContext>();
 
-  create: async ({ request, body }) => {
-    try {
-      if (!request.user) {
-        return { status: 401 as const, body: { error: 'Authentication required' } };
-      }
-      const address = await addressesService.create(request.user.id, body);
-      return { status: 201 as const, body: address };
-    } catch (error) {
-      if (error instanceof AddressLimitError) {
-        return { status: 422 as const, body: { error: error.message } };
-      }
-      logger.error({ error, userId: request.user?.id }, 'Unexpected error in create address');
-      return { status: 500 as const, body: { error: 'Internal server error' } };
-    }
-  },
+const list = os.list.handler(async ({ context, errors }) => {
+  if (!context.userId) {
+    throw errors.UNAUTHORIZED({ data: { error: 'Authentication required' } });
+  }
 
-  update: async ({ request, params, body }) => {
-    try {
-      if (!request.user) {
-        return { status: 401 as const, body: { error: 'Authentication required' } };
-      }
-      const address = await addressesService.update(params.id, request.user.id, body);
-      return { status: 200 as const, body: address };
-    } catch (error) {
-      if (error instanceof AddressNotFoundError) {
-        return { status: 404 as const, body: { error: error.message } };
-      }
-      logger.error(
-        { error, addressId: params.id, userId: request.user?.id },
-        'Unexpected error in update address'
-      );
-      return { status: 500 as const, body: { error: 'Internal server error' } };
-    }
-  },
-
-  delete: async ({ request, params }) => {
-    try {
-      if (!request.user) {
-        return { status: 401 as const, body: { error: 'Authentication required' } };
-      }
-      await addressesService.delete(params.id, request.user.id);
-      return { status: 204 as const, body: undefined };
-    } catch (error) {
-      if (error instanceof AddressNotFoundError) {
-        return { status: 404 as const, body: { error: error.message } };
-      }
-      logger.error(
-        { error, addressId: params.id, userId: request.user?.id },
-        'Unexpected error in delete address'
-      );
-      return { status: 500 as const, body: { error: 'Internal server error' } };
-    }
-  },
+  try {
+    const addresses = await addressesService.list(context.userId);
+    return { addresses };
+  } catch (error) {
+    logger.error({ error, userId: context.userId }, 'Unexpected error in list addresses');
+    throw error;
+  }
 });
 
-export function registerAddressesRoutes(fastify: FastifyInstance) {
-  return s.registerRouter(addressesContract, router, fastify, tsRestRouterOptions);
-}
+const create = os.create.handler(async ({ input, context, errors }) => {
+  if (!context.userId) {
+    throw errors.UNAUTHORIZED({ data: { error: 'Authentication required' } });
+  }
+
+  try {
+    return await addressesService.create(context.userId, input);
+  } catch (error) {
+    if (error instanceof AddressLimitError) {
+      throw errors.UNPROCESSABLE_ENTITY({ data: { error: error.message } });
+    }
+
+    logger.error({ error, userId: context.userId }, 'Unexpected error in create address');
+    throw error;
+  }
+});
+
+const update = os.update.handler(async ({ input, context, errors }) => {
+  if (!context.userId) {
+    throw errors.UNAUTHORIZED({ data: { error: 'Authentication required' } });
+  }
+
+  try {
+    return await addressesService.update(input.params.id, context.userId, input.body);
+  } catch (error) {
+    if (error instanceof AddressNotFoundError) {
+      throw errors.NOT_FOUND({ data: { error: error.message } });
+    }
+
+    logger.error(
+      { error, addressId: input.params.id, userId: context.userId },
+      'Unexpected error in update address'
+    );
+    throw error;
+  }
+});
+
+const deleteAddress = os.delete.handler(async ({ input, context, errors }) => {
+  if (!context.userId) {
+    throw errors.UNAUTHORIZED({ data: { error: 'Authentication required' } });
+  }
+
+  try {
+    await addressesService.delete(input.params.id, context.userId);
+    return undefined;
+  } catch (error) {
+    if (error instanceof AddressNotFoundError) {
+      throw errors.NOT_FOUND({ data: { error: error.message } });
+    }
+
+    logger.error(
+      { error, addressId: input.params.id, userId: context.userId },
+      'Unexpected error in delete address'
+    );
+    throw error;
+  }
+});
+
+export const addressesOrpcRouter = os.router({
+  list,
+  create,
+  update,
+  delete: deleteAddress,
+});

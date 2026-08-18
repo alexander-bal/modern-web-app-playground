@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +9,7 @@ import { Container } from '@/components/ui/container';
 import { FormField } from '@/components/ui/form-field';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
-import { tsr } from '../lib/api-client';
+import { orpc } from '../lib/api-client';
 
 interface AddressFormData {
   fullName: string;
@@ -44,47 +44,42 @@ export function AddressesPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [mutationError, setMutationError] = useState<string | null>(null);
 
-  const { data, isPending } = tsr.addresses.list.useQuery({ queryKey: ['addresses'] });
-  const addresses = data?.status === 200 ? data.body.addresses : [];
+  const { data, isPending } = useQuery(orpc.addresses.list.queryOptions());
+  const addresses = data?.addresses ?? [];
+  const addressesKey = orpc.addresses.list.queryKey();
 
-  const createMutation = tsr.addresses.create.useMutation({
-    onSuccess: (response) => {
-      if (response.status === 201) {
-        queryClient.invalidateQueries({ queryKey: ['addresses'] });
+  const createMutation = useMutation(
+    orpc.addresses.create.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: addressesKey });
         setFormMode({ type: 'none' });
         setFormData(emptyForm);
         setMutationError(null);
-      } else {
-        setMutationError('Failed to create address.');
-      }
-    },
-    onError: () => setMutationError('Failed to create address.'),
-  });
+      },
+      onError: () => setMutationError('Failed to create address.'),
+    })
+  );
 
-  const updateMutation = tsr.addresses.update.useMutation({
-    onSuccess: (response) => {
-      if (response.status === 200) {
-        queryClient.invalidateQueries({ queryKey: ['addresses'] });
+  const updateMutation = useMutation(
+    orpc.addresses.update.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: addressesKey });
         setFormMode({ type: 'none' });
         setFormData(emptyForm);
         setMutationError(null);
-      } else {
-        setMutationError('Failed to update address.');
-      }
-    },
-    onError: () => setMutationError('Failed to update address.'),
-  });
+      },
+      onError: () => setMutationError('Failed to update address.'),
+    })
+  );
 
-  const deleteMutation = tsr.addresses.delete.useMutation({
-    onSuccess: (response) => {
-      if (response.status === 204) {
-        queryClient.invalidateQueries({ queryKey: ['addresses'] });
-      } else {
-        setMutationError('Failed to delete address.');
-      }
-    },
-    onError: () => setMutationError('Failed to delete address.'),
-  });
+  const deleteMutation = useMutation(
+    orpc.addresses.delete.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: addressesKey });
+      },
+      onError: () => setMutationError('Failed to delete address.'),
+    })
+  );
 
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
@@ -112,7 +107,7 @@ export function AddressesPage() {
       isDefault: formData.isDefault,
     };
     if (formMode.type === 'add') {
-      createMutation.mutate({ body });
+      createMutation.mutate(body);
     } else if (formMode.type === 'edit') {
       updateMutation.mutate({ params: { id: formMode.id }, body });
     }

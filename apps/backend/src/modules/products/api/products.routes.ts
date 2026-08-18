@@ -1,82 +1,45 @@
-import { productsContract } from '@mercado/api-contracts';
-import { initServer } from '@ts-rest/fastify';
-import { tsRestRouterOptions } from '../../../config/server.js';
-import type { FastifyInstance } from 'fastify';
+import { productsOrpcContract } from '@mercado/api-contracts';
+import { implement } from '@orpc/server';
 import { createModuleLogger } from '../../../lib/logger.js';
 import { ProductNotFoundError, productsService } from '../services/products.service.js';
 
 const logger = createModuleLogger('products');
 
-const s = initServer();
+const os = implement(productsOrpcContract);
 
-const router = s.router(productsContract, {
-  list: async ({ query }) => {
-    try {
-      const result = await productsService.list(query);
-
-      return {
-        status: 200 as const,
-        body: result,
-      };
-    } catch (error) {
-      logger.error({ error, query }, 'Unexpected error in list products route');
-      return {
-        status: 500 as const,
-        body: {
-          error: 'Internal server error',
-        },
-      };
-    }
-  },
-
-  getBySlug: async ({ params }) => {
-    try {
-      const product = await productsService.getBySlug(params.slug);
-
-      return {
-        status: 200 as const,
-        body: product,
-      };
-    } catch (error) {
-      if (error instanceof ProductNotFoundError) {
-        return {
-          status: 404 as const,
-          body: {
-            error: error.message,
-          },
-        };
-      }
-
-      logger.error({ error, slug: params.slug }, 'Unexpected error in get product by slug route');
-      return {
-        status: 500 as const,
-        body: {
-          error: 'Internal server error',
-        },
-      };
-    }
-  },
-
-  search: async ({ query }) => {
-    try {
-      const result = await productsService.search(query);
-
-      return {
-        status: 200 as const,
-        body: result,
-      };
-    } catch (error) {
-      logger.error({ error, query }, 'Unexpected error in search products route');
-      return {
-        status: 500 as const,
-        body: {
-          error: 'Internal server error',
-        },
-      };
-    }
-  },
+const list = os.list.handler(async ({ input }) => {
+  try {
+    return await productsService.list(input);
+  } catch (error) {
+    logger.error({ error, query: input }, 'Unexpected error in list products route');
+    throw error;
+  }
 });
 
-export function registerProductsRoutes(fastify: FastifyInstance) {
-  return s.registerRouter(productsContract, router, fastify, tsRestRouterOptions);
-}
+const getBySlug = os.getBySlug.handler(async ({ input, errors }) => {
+  try {
+    return await productsService.getBySlug(input.slug);
+  } catch (error) {
+    if (error instanceof ProductNotFoundError) {
+      throw errors.NOT_FOUND({ data: { error: error.message } });
+    }
+
+    logger.error({ error, slug: input.slug }, 'Unexpected error in get product by slug route');
+    throw error;
+  }
+});
+
+const search = os.search.handler(async ({ input }) => {
+  try {
+    return await productsService.search(input);
+  } catch (error) {
+    logger.error({ error, query: input }, 'Unexpected error in search products route');
+    throw error;
+  }
+});
+
+export const productsOrpcRouter = os.router({
+  list,
+  getBySlug,
+  search,
+});

@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -7,26 +8,21 @@ import { Spinner } from '@/components/ui/spinner';
 import noPhoto from '../assets/no-photo.svg';
 import { CartSidebar } from '../components/cart-sidebar';
 import { ProductCardCartControls } from '../components/product-card-cart-controls';
-import { tsr } from '../lib/api-client';
+import { orpc } from '../lib/api-client';
 
 const PAGE_SIZE = 20;
 
 export function ProductsPage() {
   const [page, setPage] = useState(1);
 
-  const { data, isPending, error } = tsr.products.list.useQuery({
-    queryKey: ['products', page],
-    queryData: {
-      query: {
-        status: 'active',
-        page,
-        limit: PAGE_SIZE,
-      },
-    },
-  });
+  const { data, isPending, error } = useQuery(
+    orpc.products.list.queryOptions({
+      input: { status: 'active', page, limit: PAGE_SIZE },
+    })
+  );
 
-  const products = data?.status === 200 ? data.body.products : [];
-  const pagination = data?.status === 200 ? data.body.pagination : null;
+  const products = data?.products ?? [];
+  const pagination = data?.pagination ?? null;
 
   const formatPrice = (price: string, currency: string) => {
     const numericPrice = Number.parseFloat(price);

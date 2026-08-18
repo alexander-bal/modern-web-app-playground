@@ -1,14 +1,14 @@
+import type { CreateAddressBody, UpdateAddressBody } from '@mercado/api-contracts';
 import type { Database } from '../../../db/index.js';
 import { db } from '../../../db/index.js';
 import { createModuleLogger } from '../../../lib/logger.js';
-import type { CreateAddressBody, UpdateAddressBody } from '@mercado/api-contracts';
 import type { AddressWithoutUserId, NewAddressEntity } from '../domain/address.entity.js';
 import {
   clearDefaultForUser,
   countAddressesByUserId,
   deleteAddressById,
-  findAddressesByUserId,
   findAddressByIdAndUserId,
+  findAddressesByUserId,
   insertAddress,
   updateAddressById,
 } from '../repositories/addresses.repository.js';

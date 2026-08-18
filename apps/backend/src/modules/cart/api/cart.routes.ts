@@ -1,7 +1,7 @@
-import { cartContract } from '@mercado/api-contracts';
-import { initServer } from '@ts-rest/fastify';
-import { tsRestRouterOptions } from '../../../config/server.js';
+import { cartOrpcContract } from '@mercado/api-contracts';
+import { implement } from '@orpc/server';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { mountOrpcModule } from '../../../config/orpc-mount.js';
 import { createModuleLogger } from '../../../lib/logger.js';
 import { authService } from '../../auth/index.js';
 import type { CartIdentifier } from '../domain/cart.types.js';
@@ -16,13 +16,8 @@ import {
 
 const logger = createModuleLogger('cart');
 
-const s = initServer();
-
 const CART_TOKEN_COOKIE_NAME = 'cart_token';
 
-/**
- * Set cart token cookie on response
- */
 function setCartTokenCookie(reply: FastifyReply, token: string): void {
   reply.setCookie(CART_TOKEN_COOKIE_NAME, token, {
     httpOnly: true,
@@ -34,16 +29,14 @@ function setCartTokenCookie(reply: FastifyReply, token: string): void {
 }
 
 /**
- * Extract cart identifier from request
- * Checks for authenticated user (session cookie) first, then cart_token cookie (guest)
+ * Extract cart identifier from request.
+ * Checks for authenticated user (session cookie) first, then cart_token cookie (guest).
  */
 async function extractCartIdentifier(request: FastifyRequest): Promise<CartIdentifier> {
-  // Check if user is already authenticated via session plugin
   if (request.user) {
     return { type: 'user', userId: request.user.id };
   }
 
-  // Check for session cookie to resolve user (cart routes are public, so session plugin isn't active)
   const sessionToken = request.cookies['sid'];
   if (sessionToken) {
     try {
@@ -54,7 +47,6 @@ async function extractCartIdentifier(request: FastifyRequest): Promise<CartIdent
     }
   }
 
-  // Fallback to guest cart token
   const cartToken = request.cookies[CART_TOKEN_COOKIE_NAME];
   if (cartToken) {
     return { type: 'guest', cartToken };
@@ -63,229 +55,143 @@ async function extractCartIdentifier(request: FastifyRequest): Promise<CartIdent
   return { type: 'guest' };
 }
 
-/**
- * Extract authenticated user ID from request
- * Returns null if not authenticated
- */
-async function extractAuthenticatedUserId(request: FastifyRequest): Promise<string | null> {
-  if (request.user) {
-    return request.user.id;
-  }
-
-  const sessionToken = request.cookies['sid'];
-  if (sessionToken) {
-    try {
-      const user = await authService.validateSession(sessionToken);
-      return user.id;
-    } catch {
-      // Session invalid or expired
-    }
-  }
-
-  return null;
+export interface CartOrpcContext {
+  identifier: CartIdentifier;
+  userId: string | null;
+  /** Carries the newly-issued guest cart token to the onSend hook, which sets the cookie. */
+  request: FastifyRequest & { newCartToken?: string };
 }
 
-const router = s.router(cartContract, {
-  getCart: async ({ request }) => {
-    try {
-      const identifier = await extractCartIdentifier(request);
-      const cart = await cartService.getCart(identifier);
+async function buildCartOrpcContext(request: FastifyRequest): Promise<CartOrpcContext> {
+  const identifier = await extractCartIdentifier(request);
 
-      return {
-        status: 200 as const,
-        body: cart,
-      };
-    } catch (error) {
-      logger.error({ error }, 'Unexpected error in get cart route');
-      return {
-        status: 500 as const,
-        body: {
-          error: 'Internal server error',
-        },
-      };
+  return {
+    identifier,
+    userId: identifier.type === 'user' ? identifier.userId : null,
+    request,
+  };
+}
+
+const os = implement(cartOrpcContract).$context<CartOrpcContext>();
+
+const getCart = os.getCart.handler(async ({ context }) => {
+  try {
+    return await cartService.getCart(context.identifier);
+  } catch (error) {
+    logger.error({ error }, 'Unexpected error in get cart route');
+    throw error;
+  }
+});
+
+const addItem = os.addItem.handler(async ({ input, context, errors }) => {
+  try {
+    const result = await cartService.addItem(context.identifier, input.productId, input.quantity);
+
+    if (result.newCartToken) {
+      context.request.newCartToken = result.newCartToken;
     }
-  },
 
-  addItem: async ({ request, body }) => {
-    try {
-      const identifier = await extractCartIdentifier(request);
-      const result = await cartService.addItem(identifier, body.productId, body.quantity);
-
-      // Store newCartToken on request for onSend hook to set cookie
-      if (result.newCartToken) {
-        (request as FastifyRequest & { newCartToken?: string }).newCartToken = result.newCartToken;
-      }
-
-      return {
-        status: 200 as const,
-        body: result,
-      };
-    } catch (error) {
-      if (error instanceof ProductNotFoundError) {
-        return {
-          status: 404 as const,
-          body: {
-            error: 'Product not found',
-          },
-        };
-      }
-
-      if (error instanceof ProductNotAvailableError) {
-        return {
-          status: 422 as const,
-          body: {
-            error: 'Product is not available',
-          },
-        };
-      }
-
-      if (error instanceof CurrencyMismatchError) {
-        return {
-          status: 422 as const,
-          body: {
-            error: 'Product currency does not match cart currency',
-          },
-        };
-      }
-
-      logger.error({ error, body }, 'Unexpected error in add item route');
-      return {
-        status: 500 as const,
-        body: {
-          error: 'Internal server error',
-        },
-      };
+    return result;
+  } catch (error) {
+    if (error instanceof ProductNotFoundError) {
+      throw errors.NOT_FOUND({ data: { error: 'Product not found' } });
     }
-  },
 
-  updateItem: async ({ request, params, body }) => {
-    try {
-      const identifier = await extractCartIdentifier(request);
-      const cart = await cartService.updateItemQuantity(identifier, params.itemId, body.quantity);
-
-      return {
-        status: 200 as const,
-        body: cart,
-      };
-    } catch (error) {
-      if (error instanceof CartNotFoundError) {
-        return {
-          status: 404 as const,
-          body: {
-            error: 'Cart not found',
-          },
-        };
-      }
-
-      if (error instanceof CartItemNotFoundError) {
-        return {
-          status: 404 as const,
-          body: {
-            error: 'Cart item not found',
-          },
-        };
-      }
-
-      logger.error({ error, params, body }, 'Unexpected error in update item route');
-      return {
-        status: 500 as const,
-        body: {
-          error: 'Internal server error',
-        },
-      };
+    if (error instanceof ProductNotAvailableError) {
+      throw errors.UNPROCESSABLE_ENTITY({ data: { error: 'Product is not available' } });
     }
-  },
 
-  removeItem: async ({ request, params }) => {
-    try {
-      const identifier = await extractCartIdentifier(request);
-      const cart = await cartService.removeItem(identifier, params.itemId);
-
-      return {
-        status: 200 as const,
-        body: cart,
-      };
-    } catch (error) {
-      if (error instanceof CartNotFoundError) {
-        return {
-          status: 404 as const,
-          body: {
-            error: 'Cart not found',
-          },
-        };
-      }
-
-      if (error instanceof CartItemNotFoundError) {
-        return {
-          status: 404 as const,
-          body: {
-            error: 'Cart item not found',
-          },
-        };
-      }
-
-      logger.error({ error, params }, 'Unexpected error in remove item route');
-      return {
-        status: 500 as const,
-        body: {
-          error: 'Internal server error',
-        },
-      };
+    if (error instanceof CurrencyMismatchError) {
+      throw errors.UNPROCESSABLE_ENTITY({
+        data: { error: 'Product currency does not match cart currency' },
+      });
     }
-  },
 
-  mergeCart: async ({ request, body }) => {
-    try {
-      const userId = await extractAuthenticatedUserId(request);
+    logger.error({ error, input }, 'Unexpected error in add item route');
+    throw error;
+  }
+});
 
-      if (!userId) {
-        return {
-          status: 401 as const,
-          body: {
-            error: 'Authentication required',
-          },
-        };
-      }
-
-      const cart = await cartService.mergeGuestCart(userId, body.cartToken);
-
-      return {
-        status: 200 as const,
-        body: cart,
-      };
-    } catch (error) {
-      if (error instanceof CartNotFoundError) {
-        return {
-          status: 404 as const,
-          body: {
-            error: 'Guest cart not found',
-          },
-        };
-      }
-
-      logger.error({ error, body }, 'Unexpected error in merge cart route');
-      return {
-        status: 500 as const,
-        body: {
-          error: 'Internal server error',
-        },
-      };
+const updateItem = os.updateItem.handler(async ({ input, context, errors }) => {
+  try {
+    return await cartService.updateItemQuantity(
+      context.identifier,
+      input.params.itemId,
+      input.body.quantity
+    );
+  } catch (error) {
+    if (error instanceof CartNotFoundError) {
+      throw errors.NOT_FOUND({ data: { error: 'Cart not found' } });
     }
-  },
+
+    if (error instanceof CartItemNotFoundError) {
+      throw errors.NOT_FOUND({ data: { error: 'Cart item not found' } });
+    }
+
+    logger.error({ error, input }, 'Unexpected error in update item route');
+    throw error;
+  }
+});
+
+const removeItem = os.removeItem.handler(async ({ input, context, errors }) => {
+  try {
+    return await cartService.removeItem(context.identifier, input.params.itemId);
+  } catch (error) {
+    if (error instanceof CartNotFoundError) {
+      throw errors.NOT_FOUND({ data: { error: 'Cart not found' } });
+    }
+
+    if (error instanceof CartItemNotFoundError) {
+      throw errors.NOT_FOUND({ data: { error: 'Cart item not found' } });
+    }
+
+    logger.error({ error, input }, 'Unexpected error in remove item route');
+    throw error;
+  }
+});
+
+const mergeCart = os.mergeCart.handler(async ({ input, context, errors }) => {
+  if (!context.userId) {
+    throw errors.UNAUTHORIZED({ data: { error: 'Authentication required' } });
+  }
+
+  try {
+    return await cartService.mergeGuestCart(context.userId, input.cartToken);
+  } catch (error) {
+    if (error instanceof CartNotFoundError) {
+      throw errors.NOT_FOUND({ data: { error: 'Guest cart not found' } });
+    }
+
+    logger.error({ error, input }, 'Unexpected error in merge cart route');
+    throw error;
+  }
+});
+
+const cartOrpcRouter = os.router({
+  getCart,
+  addItem,
+  updateItem,
+  removeItem,
+  mergeCart,
 });
 
 /**
- * Register cart routes with Fastify instance
+ * Registers cart's oRPC routes. The onSend hook sets the guest cart token cookie once
+ * `addItem` writes it to `context.request.newCartToken`.
  */
-export function registerCartRoutes(fastify: FastifyInstance) {
-  // Add onSend hook to set cart token cookie when newCartToken is present
-  fastify.addHook('onSend', (request, reply, _payload, done) => {
-    const req = request as FastifyRequest & { newCartToken?: string };
-    if (req.newCartToken) {
-      setCartTokenCookie(reply, req.newCartToken);
-    }
-    done();
-  });
+export function registerCartRoutes(fastify: FastifyInstance): void {
+  fastify.register((cartScope) => {
+    cartScope.addHook('onSend', (request, reply, _payload, done) => {
+      const req = request as FastifyRequest & { newCartToken?: string };
+      if (req.newCartToken) {
+        setCartTokenCookie(reply, req.newCartToken);
+      }
+      done();
+    });
 
-  return s.registerRouter(cartContract, router, fastify, tsRestRouterOptions);
+    mountOrpcModule<CartOrpcContext>(cartScope, cartOrpcRouter, {
+      prefix: '/api/cart',
+      getContext: buildCartOrpcContext,
+    });
+  });
 }

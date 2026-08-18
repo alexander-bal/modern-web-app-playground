@@ -349,6 +349,8 @@ Each step was independently shippable and testable.
 
 ## Addendum (2026-08-18): ts-rest vs oRPC Reconsidered
 
+**Superseded (2026-08-18, same day):** the "keep ts-rest" decision below was reversed a few hours later — ts-rest was confirmed unmaintained (this addendum's own stated trigger condition), and the migration executed. See `docs/adr/2026-08-18-15-55-migrate-ts-rest-to-orpc.md` for the resulting design. The rest of this ADR (the contracts-package structure itself) is unaffected and still current.
+
 ### Why reconsidered
 
 oRPC (`@orpc/*`) has matured into a credible contract-first alternative in the same space as ts-rest and periodically comes up as "should we switch." This addendum evaluates that question directly against this codebase, so a future re-evaluation doesn't repeat the research.

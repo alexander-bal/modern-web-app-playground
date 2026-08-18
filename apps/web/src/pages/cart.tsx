@@ -1,6 +1,5 @@
 import { Minus, Plus, ShoppingCart, Trash2, X } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -8,17 +7,12 @@ import { Container } from '@/components/ui/container';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
 import noPhoto from '../assets/no-photo.svg';
-import { tsr } from '../lib/api-client';
+import { useCartOptimisticMutations } from '../hooks/use-cart-optimistic-mutations';
+import { orpc } from '../lib/api-client';
 
 export function CartPage() {
-  const queryClient = useQueryClient();
-  const [error, setError] = useState<string | null>(null);
-
-  const { data, isPending } = tsr.cart.getCart.useQuery({
-    queryKey: ['cart'],
-  });
-
-  const cart = data?.status === 200 ? data.body : null;
+  const { data: cart, isPending } = useQuery(orpc.cart.getCart.queryOptions());
+  const { updateItemMutation, removeItemMutation } = useCartOptimisticMutations();
 
   const formatPrice = (price: string, currency: string) => {
     const numericPrice = Number.parseFloat(price);
@@ -28,86 +22,13 @@ export function CartPage() {
     }).format(numericPrice);
   };
 
-  const updateItemMutation = tsr.cart.updateItem.useMutation({
-    onMutate: async (vars) => {
-      await queryClient.cancelQueries({ queryKey: ['cart'] });
-      const previous = queryClient.getQueryData(['cart']);
-
-      queryClient.setQueryData(['cart'], (old: typeof data) => {
-        if (old?.status !== 200) return old;
-
-        return {
-          ...old,
-          body: {
-            ...old.body,
-            items: old.body.items.map((item) =>
-              item.id === vars.params.itemId
-                ? {
-                    ...item,
-                    quantity: vars.body.quantity,
-                    lineTotal: (Number.parseFloat(item.unitPrice) * vars.body.quantity).toFixed(2),
-                  }
-                : item
-            ),
-          },
-        };
-      });
-
-      return { previous };
-    },
-    onError: (_, __, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(['cart'], context.previous);
-      }
-      setError('Failed to update quantity');
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
-    },
-  });
-
   const updateQuantity = (itemId: string, newQuantity: number) => {
     if (newQuantity < 1) return;
-    updateItemMutation.mutate({
-      params: { itemId },
-      body: { quantity: newQuantity },
-    });
+    updateItemMutation.mutate({ params: { itemId }, body: { quantity: newQuantity } });
   };
 
-  const removeItemMutation = tsr.cart.removeItem.useMutation({
-    onMutate: async (vars) => {
-      await queryClient.cancelQueries({ queryKey: ['cart'] });
-      const previous = queryClient.getQueryData(['cart']);
-
-      queryClient.setQueryData(['cart'], (old: typeof data) => {
-        if (old?.status !== 200) return old;
-
-        return {
-          ...old,
-          body: {
-            ...old.body,
-            items: old.body.items.filter((item) => item.id !== vars.params.itemId),
-          },
-        };
-      });
-
-      return { previous };
-    },
-    onError: (_, __, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(['cart'], context.previous);
-      }
-      setError('Failed to remove item');
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
-    },
-  });
-
   const removeItem = (itemId: string) => {
-    removeItemMutation.mutate({
-      params: { itemId },
-    });
+    removeItemMutation.mutate({ params: { itemId } });
   };
 
   if (isPending) {
@@ -139,7 +60,6 @@ export function CartPage() {
   }
 
   const dismissibleErrors = [
-    error ? { key: 'cart', message: error, dismiss: () => setError(null) } : null,
     updateItemMutation.error
       ? {
           key: 'update',

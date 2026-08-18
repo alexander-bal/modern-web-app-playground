@@ -1,4 +1,6 @@
 import { CircleCheck } from 'lucide-react';
+import { isDefinedError } from '@orpc/client';
+import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -7,35 +9,31 @@ import { Container } from '@/components/ui/container';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
 import noPhoto from '../assets/no-photo.svg';
-import { tsr } from '../lib/api-client';
+import { orpc } from '../lib/api-client';
 import { parseAddress } from '../lib/parse-address';
 
 export function OrderConfirmationPage() {
   const { orderNumber } = useParams<{ orderNumber: string }>();
 
   const {
-    data,
+    data: order,
     isPending,
     error: queryError,
-  } = tsr.orders.getByOrderNumber.useQuery({
-    queryKey: ['orders', orderNumber],
-    queryData: {
-      params: { orderNumber: orderNumber ?? '' },
-    },
-    enabled: !!orderNumber,
-  });
+  } = useQuery(
+    orpc.orders.getByOrderNumber.queryOptions({
+      input: { orderNumber: orderNumber ?? '' },
+      enabled: !!orderNumber,
+    })
+  );
 
-  const order = data?.status === 200 ? data.body : null;
   const shippingAddress = parseAddress(order?.shippingAddress);
   const billingAddress = parseAddress(order?.billingAddress);
   const error = !orderNumber
     ? 'Order number is missing'
-    : queryError instanceof Error
-      ? queryError.message
-      : queryError
-        ? queryError.status === 404
-          ? 'Order not found'
-          : 'Failed to fetch order'
+    : isDefinedError(queryError) && queryError.code === 'NOT_FOUND'
+      ? 'Order not found'
+      : queryError instanceof Error
+        ? queryError.message
         : null;
 
   const formatPrice = (price: string, currency: string) => {

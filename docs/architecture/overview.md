@@ -4,7 +4,7 @@
 
 E-commerce system with backend API and React frontend. Integrates with Core microservice.
 
-**Stack**: Node.js 24+, TypeScript, Fastify, PostgreSQL, Temporal, ts-rest, Drizzle ORM, Vitest, React, Vite.
+**Stack**: Node.js 24+, TypeScript, Fastify, PostgreSQL, Temporal, oRPC, Drizzle ORM, Vitest, React, Vite.
 
 For testing strategy, see [Testing Architecture](./testing-architecture.md).
 
@@ -14,7 +14,7 @@ pnpm workspace with three packages:
 
 ```
 packages/
-└── api-contracts/              # Shared API contracts (ts-rest + Zod)
+└── api-contracts/              # Shared API contracts (oRPC + Zod)
     ├── src/
     │   ├── shared/             # Shared error and pagination schemas
     │   ├── auth/               # Auth contract and schemas
@@ -79,7 +79,7 @@ Self-contained domain features. Each module may contain:
 
 | Directory | Purpose |
 |-----------|---------|
-| `api/` | HTTP routes and ts-rest contracts |
+| `api/` | HTTP routes and oRPC contracts |
 | `services/` | Business logic |
 | `repositories/` | Data access |
 | `workflows/` | Temporal workflows and activities |
@@ -130,25 +130,25 @@ PostgreSQL stores in UTC, converts on retrieval.
 - **Internal** (`/api/internal/*`): Not versioned
 - **Public** (`/api/v1/*`): Versioned for backward compatibility
 
-### Contracts (ts-rest + Zod)
+### Contracts (oRPC + Zod)
 
-**Single source of truth**: All API contracts live in `@mercado/api-contracts` package.
+**Single source of truth**: All API contracts live in `@mercado/api-contracts` package, one per module (no combined root contract).
 
-**Backend**: Route handlers consume contracts via `@ts-rest/fastify`:
+**Backend**: Route handlers consume contracts via `@orpc/server`'s `implement()`, mounted through a shared Fastify helper:
 
 ```typescript
-import { cartContract } from '@mercado/api-contracts';
-const router = s.router(cartContract, { /* handlers */ });
+import { cartOrpcContract } from '@mercado/api-contracts';
+import { implement } from '@orpc/server';
+const os = implement(cartOrpcContract).$context<CartOrpcContext>();
+export const cartOrpcRouter = os.router({ /* handlers */ });
 ```
 
-**Frontend**: Typed client consumes contracts via `@ts-rest/core`:
+**Frontend**: Typed client consumes contracts via `@orpc/client` + `@orpc/tanstack-query`:
 
 ```typescript
-import { api } from './lib/api-client';
-const res = await api.cart.getCart();
-if (res.status === 200) {
-  // res.body is fully typed from contract
-}
+import { orpc } from './lib/api-client';
+const { data } = useQuery(orpc.cart.getCart.queryOptions());
+// data is fully typed from contract
 ```
 
 **OpenAPI**: Generated automatically from contracts via `pnpm openapi:generate`.

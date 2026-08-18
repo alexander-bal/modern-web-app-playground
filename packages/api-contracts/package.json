@@ -17,7 +17,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ts-rest/core": "catalog:",
+    "@orpc/contract": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

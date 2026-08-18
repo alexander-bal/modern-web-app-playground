@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { createTestUser } from '../../../../tests/factories/users.js';
 import { createTestAddress } from '../../../../tests/factories/addresses.js';
+import { createTestUser } from '../../../../tests/factories/users.js';
 import { addresses, db, users } from '../../../db/index.js';
 import {
   AddressLimitError,

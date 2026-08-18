@@ -3,6 +3,8 @@
 **Status:** proposed
 **Date:** 2026-03-05 19:30
 
+**Partially superseded (2026-08-18):** the API contract layer moved from ts-rest to oRPC (`docs/adr/2026-08-18-15-55-migrate-ts-rest-to-orpc.md`), so `@ts-rest/react-query`/`initTsrReactQuery` is gone — TanStack Query integration now goes through `@orpc/tanstack-query`'s `createTanstackQueryUtils` instead. The core decision below (adopt TanStack Query for server state) is unaffected; only the integration mechanism changed.
+
 ## Context
 
 The React frontend (`apps/web/`) manages all server state — data fetched from the backend API — with manual `useEffect` + `useState` patterns. Every page and context independently implements fetching, loading states, and error handling. There is no caching, request deduplication, or background refetching.

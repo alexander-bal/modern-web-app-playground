@@ -47,7 +47,7 @@ export async function createOrderService(
   database: Database = db
 ): Promise<Order> {
   try {
-    // Handles both raw input (number) and pre-parsed (string) due to ts-rest coercion
+    // Handles both raw input (number) and pre-parsed (string); Zod coerces either shape
     const validatedData: CreateOrderOutput = createOrderSchema.parse(input);
 
     const order = await createOrder(validatedData, database);
@@ -110,7 +110,7 @@ export async function updateOrderService(
   database: Database = db
 ): Promise<Order> {
   try {
-    // Handles both raw input (number) and pre-parsed (string) due to ts-rest coercion
+    // Handles both raw input (number) and pre-parsed (string); Zod coerces either shape
     const validatedData: UpdateOrderOutput = updateOrderSchema.parse(input);
 
     const order = await updateOrder(id, validatedData as UpdateOrder, database);

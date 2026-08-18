@@ -1,9 +1,10 @@
 import { ShoppingCart } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { buttonVariants } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
-import { tsr } from '../lib/api-client';
+import { orpc } from '../lib/api-client';
 
 const formatPrice = (price: string, currency: string) => {
   const numericPrice = Number.parseFloat(price);
@@ -14,11 +15,7 @@ const formatPrice = (price: string, currency: string) => {
 };
 
 export function CartSidebar() {
-  const { data, isPending } = tsr.cart.getCart.useQuery({
-    queryKey: ['cart'],
-  });
-
-  const cart = data?.status === 200 ? data.body : null;
+  const { data: cart, isPending } = useQuery(orpc.cart.getCart.queryOptions());
 
   return (
     <div className="sticky top-[88px] rounded-xl border bg-card p-4 shadow-sm">

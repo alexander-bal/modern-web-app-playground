@@ -1,7 +1,7 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { createContext, useCallback, useContext } from 'react';
-import { tsr } from '../lib/api-client';
+import { orpc } from '../lib/api-client';
 
 interface CartContextValue {
   itemCount: number;
@@ -14,16 +14,15 @@ const CartContext = createContext<CartContextValue>({
 });
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const { data } = tsr.cart.getCart.useQuery({
-    queryKey: ['cart'],
-  });
+  const { data } = useQuery(orpc.cart.getCart.queryOptions());
   const queryClient = useQueryClient();
 
-  const itemCount = data?.status === 200 ? data.body.itemCount : 0;
+  const itemCount = data?.itemCount ?? 0;
+  const cartKey = orpc.cart.getCart.queryKey();
 
   const invalidateCart = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['cart'] });
-  }, [queryClient]);
+    queryClient.invalidateQueries({ queryKey: cartKey });
+  }, [queryClient, cartKey]);
 
   return (
     <CartContext.Provider value={{ itemCount, invalidateCart }}>{children}</CartContext.Provider>

@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -13,7 +14,7 @@ import { Container } from '@/components/ui/container';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
 import noPhoto from '../assets/no-photo.svg';
-import { tsr } from '../lib/api-client';
+import { orpc } from '../lib/api-client';
 import { parseAddress } from '../lib/parse-address';
 
 type OrderStatus =
@@ -34,17 +35,10 @@ export function OrdersPage() {
     isPending,
     error: queryError,
     refetch,
-  } = tsr.orders.listMyOrders.useQuery({
-    queryKey: ['orders', 'me'],
-  });
+  } = useQuery(orpc.orders.listMyOrders.queryOptions());
 
-  const orders = data?.status === 200 ? data.body.orders : [];
-  const error =
-    queryError instanceof Error
-      ? queryError.message
-      : data && data.status !== 200
-        ? 'Failed to fetch orders'
-        : null;
+  const orders = data?.orders ?? [];
+  const error = queryError instanceof Error ? queryError.message : null;
 
   const formatPrice = (price: string, currency: string) => {
     const numericPrice = Number.parseFloat(price);

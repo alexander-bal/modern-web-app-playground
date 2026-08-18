@@ -1,8 +1,9 @@
 import type { UserProfile } from '@mercado/api-contracts';
-import { useQueryClient } from '@tanstack/react-query';
+import { isDefinedError, safe } from '@orpc/client';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { createContext, useCallback, useContext } from 'react';
-import { api, tsr } from '../lib/api-client';
+import { authClient } from '../lib/api-client';
 import { useCart } from './cart-context';
 
 interface AuthContextValue {
@@ -27,70 +28,77 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const { invalidateCart } = useCart();
 
-  const { data, isPending } = tsr.auth.me.useQuery({
+  const { data: user, isPending } = useQuery({
     queryKey: AUTH_ME_KEY,
-    // An anonymous visitor gets 401, which this client throws; retrying it would double
-    // every cold page load and hold the auth gate on a spinner through the backoff.
+    queryFn: async () => {
+      const [error, data] = await safe(authClient.me());
+      return error ? null : data;
+    },
+    // An anonymous visitor's /me throws, which this client surfaces as a query error;
+    // retrying it would double every cold page load and hold the auth gate on a spinner
+    // through the backoff.
     retry: false,
-    // A 401 keeps the last successful data, so a focus refetch could not surface an
-    // expired session anyway.
+    // A failed /me keeps the last successful data, so a focus refetch could not surface
+    // an expired session anyway.
     refetchOnWindowFocus: false,
   });
 
-  const user = data?.status === 200 ? data.body : null;
-
   const login = useCallback(
     async (email: string, password: string) => {
-      const response = await api.auth.login({
-        body: { email, password },
-      });
+      const [error, data] = await safe(authClient.login({ email, password }));
 
-      if (response.status === 200) {
-        // Cancel first: invalidate only cancels a refetch of a query that already holds data,
-        // so an anonymous /me still in flight from mount would instead be awaited and its 401
-        // would decide the session. The response already carries the profile, so seed the cache
-        // with it rather than depend on another /me that could fail and strand a live session.
-        await queryClient.cancelQueries({ queryKey: AUTH_ME_KEY });
-        queryClient.setQueryData(AUTH_ME_KEY, response);
-        invalidateCart();
-      } else {
+      if (error) {
         throw new Error('Invalid email or password');
       }
+
+      // Cancel first: invalidate only cancels a refetch of a query that already holds data,
+      // so an anonymous /me still in flight from mount would instead be awaited and its
+      // failure would decide the session. The response already carries the profile, so seed
+      // the cache with it rather than depend on another /me that could fail and strand a live
+      // session.
+      await queryClient.cancelQueries({ queryKey: AUTH_ME_KEY });
+      queryClient.setQueryData(AUTH_ME_KEY, data);
+      invalidateCart();
     },
     [queryClient, invalidateCart]
   );
 
   const register = useCallback(
     async (firstName: string, lastName: string, email: string, password: string) => {
-      const response = await api.auth.register({
-        body: { firstName, lastName, email, password },
-      });
+      const [error, data] = await safe(
+        authClient.register({ firstName, lastName, email, password })
+      );
 
-      if (response.status === 201) {
-        await queryClient.cancelQueries({ queryKey: AUTH_ME_KEY });
-        // Register answers 201 where the session check answers 200; the profile body is the same.
-        queryClient.setQueryData(AUTH_ME_KEY, { ...response, status: 200 as const });
-        invalidateCart();
-      } else if (response.status === 409) {
-        throw new Error(response.body.error);
-      } else {
+      if (error) {
+        if (isDefinedError(error) && error.code === 'CONFLICT') {
+          throw new Error(error.data.error);
+        }
         throw new Error('Registration failed');
       }
+
+      await queryClient.cancelQueries({ queryKey: AUTH_ME_KEY });
+      queryClient.setQueryData(AUTH_ME_KEY, data);
+      invalidateCart();
     },
     [queryClient, invalidateCart]
   );
 
   const logout = useCallback(async () => {
-    await api.auth.logout({ body: {} });
+    // Clear local session state even if the server call fails — a failed logout
+    // request shouldn't leave the UI showing the user as still signed in.
+    await safe(authClient.logout());
     // Reset, not refetch: a query that errors keeps its last successful data, so refetching
-    // into the 401 would leave the signed-out user still reading as signed in. Reset clears the
-    // data and notifies subscribers, which `removeQueries` does not do for an active query.
+    // into the failure would leave the signed-out user still reading as signed in. Reset
+    // clears the data and notifies subscribers, which `removeQueries` does not do for an
+    // active query.
     await queryClient.resetQueries({ queryKey: AUTH_ME_KEY });
     invalidateCart();
   }, [queryClient, invalidateCart]);
 
   return (
-    <AuthContext.Provider value={{ user, loading: isPending, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ user: user ?? null, loading: isPending, login, register, logout }}
+    >
       {children}
     </AuthContext.Provider>
   );

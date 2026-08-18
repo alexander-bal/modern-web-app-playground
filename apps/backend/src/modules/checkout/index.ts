@@ -1,1 +1,1 @@
-export { registerCheckoutRoutes } from './api/checkout.routes.js';
+export { buildCheckoutOrpcContext, checkoutOrpcRouter } from './api/checkout.routes.js';

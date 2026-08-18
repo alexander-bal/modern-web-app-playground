@@ -1,5 +1,6 @@
 import { ArrowLeft, Minus, Plus, ShoppingCart } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { isDefinedError } from '@orpc/client';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -10,7 +11,7 @@ import { Container } from '@/components/ui/container';
 import { Spinner } from '@/components/ui/spinner';
 import noPhoto from '../assets/no-photo.svg';
 import { CartSidebar } from '../components/cart-sidebar';
-import { tsr } from '../lib/api-client';
+import { orpc } from '../lib/api-client';
 
 export function ProductDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -19,35 +20,33 @@ export function ProductDetailPage() {
   const [quantity, setQuantity] = useState(1);
 
   const {
-    data,
+    data: product,
     isPending,
     error: queryError,
-  } = tsr.products.getBySlug.useQuery({
-    queryKey: ['products', slug],
-    queryData: {
-      params: { slug: slug ?? '' },
-    },
-    enabled: !!slug,
-  });
+  } = useQuery(
+    orpc.products.getBySlug.queryOptions({
+      input: { slug: slug ?? '' },
+      enabled: !!slug,
+    })
+  );
 
-  const product = data?.status === 200 ? data.body : null;
   const error = !slug
     ? 'Product slug is missing'
-    : queryError instanceof Error
-      ? queryError.message
-      : queryError
-        ? queryError.status === 404
-          ? 'Product not found'
-          : 'Failed to fetch product'
+    : isDefinedError(queryError) && queryError.code === 'NOT_FOUND'
+      ? 'Product not found'
+      : queryError instanceof Error
+        ? queryError.message
         : null;
 
-  const addToCartMutation = tsr.cart.addItem.useMutation({
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
-      toast.success('Added to cart!');
-      setQuantity(1);
-    },
-  });
+  const addToCartMutation = useMutation(
+    orpc.cart.addItem.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: orpc.cart.getCart.queryKey() });
+        toast.success('Added to cart!');
+        setQuantity(1);
+      },
+    })
+  );
 
   const formatPrice = (price: string, currency: string) => {
     const numericPrice = Number.parseFloat(price);
@@ -60,12 +59,7 @@ export function ProductDetailPage() {
   const addToCart = () => {
     if (!product) return;
 
-    addToCartMutation.mutate({
-      body: {
-        productId: product.id,
-        quantity,
-      },
-    });
+    addToCartMutation.mutate({ productId: product.id, quantity });
   };
 
   if (isPending) {

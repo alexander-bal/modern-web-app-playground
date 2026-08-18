@@ -1,12 +1,16 @@
-import { apiContract } from '@mercado/api-contracts';
 import * as Sentry from '@sentry/node';
-import { generateOpenApi } from '@ts-rest/open-api';
 import Fastify from 'fastify';
+import { generateOpenApiSpec } from './config/openapi.js';
+import { mountOrpcModule } from './config/orpc-mount.js';
 import { serverConfig } from './config/server.js';
 import { authPlugin } from './infra/auth/index.js';
 import { registerInfrastructureRoutes } from './infra/index.js';
 import { env } from './lib/env.js';
 import { ValidationError } from './lib/error-transformers.js';
+import type { AddressesOrpcContext } from './modules/addresses/api/addresses.routes.js';
+import type { AuthOrpcContext } from './modules/auth/api/auth.routes.js';
+import type { CheckoutOrpcContext } from './modules/checkout/api/checkout.routes.js';
+import type { OrdersOrpcContext } from './modules/orders/api/orders.routes.js';
 
 /**
  * Build and configure the Fastify application
@@ -55,11 +59,10 @@ export async function buildApp() {
     done();
   });
 
-  // Generate OpenAPI spec from ts-rest contracts (single source of truth)
+  // Generate OpenAPI spec from the oRPC module contracts (single source of truth)
   // @fastify/swagger is registered as a minimal shell required by @fastify/swagger-ui,
-  // but the actual spec is replaced with the ts-rest-generated one via transformSpecification.
-  const openApiSpec = generateOpenApi(apiContract, {
-    openapi: '3.0.3',
+  // but the actual spec is replaced with the oRPC-generated one via transformSpecification.
+  const openApiSpec = await generateOpenApiSpec({
     info: {
       title: 'Mercado E-commerce API',
       description: 'Mercado E-commerce System API',
@@ -90,12 +93,18 @@ export async function buildApp() {
   await fastify.register(registerInfrastructureRoutes);
 
   // Register auth routes - UNPROTECTED (login, register, logout are public; /me requires auth)
-  const { registerAuthRoutes } = await import('./modules/auth/index.js');
-  await fastify.register(registerAuthRoutes);
+  const { authOrpcRouter } = await import('./modules/auth/index.js');
+  mountOrpcModule<AuthOrpcContext>(fastify, authOrpcRouter, {
+    prefix: '/api/auth',
+    getContext: (request, reply) => ({ request, reply }),
+  });
 
   // Register public API routes - UNPROTECTED
-  const { registerProductsRoutes } = await import('./modules/products/index.js');
-  await fastify.register(registerProductsRoutes);
+  const { productsOrpcRouter } = await import('./modules/products/index.js');
+  mountOrpcModule(fastify, productsOrpcRouter, {
+    prefix: '/api/products',
+    getContext: () => ({}),
+  });
 
   // Register cart routes - UNPROTECTED but with optional auth context
   const { registerCartRoutes } = await import('./modules/cart/index.js');
@@ -108,13 +117,24 @@ export async function buildApp() {
     await protectedInstance.register(authPlugin);
 
     // Register business API routes (all protected)
-    const { registerOrdersRoutes } = await import('./modules/orders/index.js');
-    const { registerCheckoutRoutes } = await import('./modules/checkout/index.js');
-    const { registerAddressesRoutes } = await import('./modules/addresses/index.js');
+    const { ordersOrpcRouter } = await import('./modules/orders/index.js');
+    const { buildCheckoutOrpcContext, checkoutOrpcRouter } = await import(
+      './modules/checkout/index.js'
+    );
+    const { addressesOrpcRouter } = await import('./modules/addresses/index.js');
 
-    await protectedInstance.register(registerOrdersRoutes);
-    await protectedInstance.register(registerCheckoutRoutes);
-    await protectedInstance.register(registerAddressesRoutes);
+    mountOrpcModule<OrdersOrpcContext>(protectedInstance, ordersOrpcRouter, {
+      prefix: '/api/orders',
+      getContext: (request) => ({ userId: request.user?.id }),
+    });
+    mountOrpcModule<CheckoutOrpcContext>(protectedInstance, checkoutOrpcRouter, {
+      prefix: '/api/checkout',
+      getContext: buildCheckoutOrpcContext,
+    });
+    mountOrpcModule<AddressesOrpcContext>(protectedInstance, addressesOrpcRouter, {
+      prefix: '/api/v1/addresses',
+      getContext: (request) => ({ userId: request.user?.id }),
+    });
   });
 
   // Add global error handler with Sentry integration
@@ -217,12 +237,18 @@ export async function buildTestApp() {
   await fastify.register(registerInfrastructureRoutes);
 
   // Register auth routes - UNPROTECTED (login, register, logout are public; /me requires auth)
-  const { registerAuthRoutes } = await import('./modules/auth/index.js');
-  await fastify.register(registerAuthRoutes);
+  const { authOrpcRouter } = await import('./modules/auth/index.js');
+  mountOrpcModule<AuthOrpcContext>(fastify, authOrpcRouter, {
+    prefix: '/api/auth',
+    getContext: (request, reply) => ({ request, reply }),
+  });
 
   // Register public API routes - UNPROTECTED
-  const { registerProductsRoutes } = await import('./modules/products/index.js');
-  await fastify.register(registerProductsRoutes);
+  const { productsOrpcRouter } = await import('./modules/products/index.js');
+  mountOrpcModule(fastify, productsOrpcRouter, {
+    prefix: '/api/products',
+    getContext: () => ({}),
+  });
 
   // Register cart routes - UNPROTECTED but with optional auth context
   const { registerCartRoutes } = await import('./modules/cart/index.js');
@@ -240,13 +266,24 @@ export async function buildTestApp() {
     await protectedInstance.register(authPlugin);
 
     // Register business API routes (all protected)
-    const { registerOrdersRoutes } = await import('./modules/orders/index.js');
-    const { registerCheckoutRoutes } = await import('./modules/checkout/index.js');
-    const { registerAddressesRoutes } = await import('./modules/addresses/index.js');
+    const { ordersOrpcRouter } = await import('./modules/orders/index.js');
+    const { buildCheckoutOrpcContext, checkoutOrpcRouter } = await import(
+      './modules/checkout/index.js'
+    );
+    const { addressesOrpcRouter } = await import('./modules/addresses/index.js');
 
-    await protectedInstance.register(registerOrdersRoutes);
-    await protectedInstance.register(registerCheckoutRoutes);
-    await protectedInstance.register(registerAddressesRoutes);
+    mountOrpcModule<OrdersOrpcContext>(protectedInstance, ordersOrpcRouter, {
+      prefix: '/api/orders',
+      getContext: (request) => ({ userId: request.user?.id }),
+    });
+    mountOrpcModule<CheckoutOrpcContext>(protectedInstance, checkoutOrpcRouter, {
+      prefix: '/api/checkout',
+      getContext: buildCheckoutOrpcContext,
+    });
+    mountOrpcModule<AddressesOrpcContext>(protectedInstance, addressesOrpcRouter, {
+      prefix: '/api/v1/addresses',
+      getContext: (request) => ({ userId: request.user?.id }),
+    });
   });
 
   // Add global error handler (same as production)

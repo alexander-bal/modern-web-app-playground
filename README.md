@@ -8,7 +8,7 @@ _Use this README to set up the complete development and test environment. Execut
 
 ## Stack
 
-- **Backend**: Node.js 24+, TypeScript, Fastify 5, ts-rest (type-safe APIs), Drizzle ORM
+- **Backend**: Node.js 24+, TypeScript, Fastify 5, oRPC (type-safe APIs), Drizzle ORM
 - **Frontend**: React, Vite
 - **Database**: PostgreSQL (Docker), Temporal (workflow orchestration)
 - **Testing**: Vitest, Playwright (E2E)

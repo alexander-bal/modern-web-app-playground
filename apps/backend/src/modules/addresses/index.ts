@@ -1,4 +1,4 @@
-export { registerAddressesRoutes } from './api/addresses.routes.js';
+export { addressesOrpcRouter } from './api/addresses.routes.js';
 
 export {
   countAddressesByUserId,

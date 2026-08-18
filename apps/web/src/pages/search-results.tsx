@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -5,7 +6,7 @@ import { Container } from '@/components/ui/container';
 import { Pagination } from '@/components/ui/pagination';
 import { Spinner } from '@/components/ui/spinner';
 import noPhoto from '../assets/no-photo.svg';
-import { tsr } from '../lib/api-client';
+import { orpc } from '../lib/api-client';
 
 const PAGE_SIZE = 20;
 
@@ -24,21 +25,15 @@ export function SearchResultsPage() {
 
   const shouldFetch = query.trim().length >= 2;
 
-  const { data, isPending, error } = tsr.products.search.useQuery({
-    queryKey: ['products-search', query, sort, page],
-    queryData: {
-      query: {
-        q: query,
-        sort,
-        page,
-        limit: PAGE_SIZE,
-      },
-    },
-    enabled: shouldFetch,
-  });
+  const { data, isPending, error } = useQuery(
+    orpc.products.search.queryOptions({
+      input: { q: query, sort, page, limit: PAGE_SIZE },
+      enabled: shouldFetch,
+    })
+  );
 
-  const products = data?.status === 200 ? data.body.products : [];
-  const pagination = data?.status === 200 ? data.body.pagination : null;
+  const products = data?.products ?? [];
+  const pagination = data?.pagination ?? null;
 
   const formatPrice = (price: string, currency: string) => {
     const numericPrice = Number.parseFloat(price);

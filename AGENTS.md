@@ -7,13 +7,13 @@ E-commerce system (Mercado).
 This project uses a **pnpm workspace monorepo** with **Turborepo** for task orchestration:
 - `apps/backend/` — Fastify 5 HTTP server (package name: `@mercado/backend`)
 - `apps/web/` — React + Vite frontend (package name: `@mercado/web`)
-- `packages/api-contracts/` — Shared ts-rest API contracts consumed by both apps
+- `packages/api-contracts/` — Shared oRPC API contracts consumed by both apps
 - `turbo.json` at root defines the task dependency graph, caching, and parallel execution
 - Run commands from root: `pnpm <command>` — scripts like `build`, `lint`, `typecheck`, `test` use `turbo run` under the hood
 
 ## Project Stack
 
-Node.js 24+, TypeScript, Fastify, PostgreSQL, Temporal workflows, ts-rest (type-safe APIs), Drizzle ORM, Vitest, Vite, React.
+Node.js 24+, TypeScript, Fastify, PostgreSQL, Temporal workflows, oRPC (type-safe APIs), Drizzle ORM, Vitest, Vite, React.
 
 ## Commands
 
@@ -72,7 +72,7 @@ pnpm db:migrate:test  # Apply migrations to test database
 
 Each domain module in `apps/backend/src/modules/<domain>/` follows:
 ```
-api/          ← ts-rest route handlers (thin — delegate to services)
+api/          ← oRPC route handlers (thin — delegate to services)
 domain/       ← domain types and validation errors
 services/     ← business logic
 repositories/ ← database queries (Drizzle)
@@ -86,12 +86,12 @@ Shared infrastructure lives in:
 
 ### API Contracts
 
-`packages/api-contracts/` defines ts-rest contracts shared between backend and frontend. The backend registers handlers against these contracts; the frontend calls them via `tsr` (the typed ts-rest React Query client at `apps/web/src/lib/api-client.ts`).
+`packages/api-contracts/` defines oRPC contracts shared between backend and frontend, one per module (no combined root contract). The backend registers handlers against these contracts via `implement()`; the frontend calls them via `orpc` (the typed oRPC + TanStack Query client at `apps/web/src/lib/api-client.ts`).
 
 When adding a new endpoint:
-1. Add the route to the contract in `packages/api-contracts/src/`
+1. Add the route to the module's contract in `packages/api-contracts/src/<module>/contract.ts` — the path is relative to that module's Fastify mount prefix, not the full `/api/...` path
 2. Implement the handler in the appropriate `modules/<domain>/api/` file
-3. Register it in `apps/backend/src/app.ts`
+3. It's mounted automatically via the module's existing `mountOrpcModule()` call in `apps/backend/src/app.ts` — only new modules need a new mount call
 
 ### Authentication
 

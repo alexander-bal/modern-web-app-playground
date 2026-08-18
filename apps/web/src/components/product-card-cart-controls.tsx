@@ -1,10 +1,11 @@
 import { Minus, Plus, X } from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
-import { tsr } from '../lib/api-client';
+import { useCartOptimisticMutations } from '../hooks/use-cart-optimistic-mutations';
+import { orpc } from '../lib/api-client';
 
 interface Props {
   productId: string;
@@ -16,79 +17,24 @@ export function ProductCardCartControls({ productId, productName }: Props) {
   const [pendingQty, setPendingQty] = useState(1);
   const [addError, setAddError] = useState<string | null>(null);
 
-  const { data, isPending: cartLoading } = tsr.cart.getCart.useQuery({
-    queryKey: ['cart'],
-  });
-
-  const cart = data?.status === 200 ? data.body : null;
+  const { data: cart, isPending: cartLoading } = useQuery(orpc.cart.getCart.queryOptions());
   const cartItem = cart?.items.find((item) => item.productId === productId) ?? null;
 
-  const addItemMutation = tsr.cart.addItem.useMutation({
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
-      setPendingQty(1);
-      setAddError(null);
-    },
-    onError: () => {
-      setAddError('Failed to add item');
-    },
-  });
+  const cartKey = orpc.cart.getCart.queryKey();
+  const addItemMutation = useMutation(
+    orpc.cart.addItem.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: cartKey });
+        setPendingQty(1);
+        setAddError(null);
+      },
+      onError: () => {
+        setAddError('Failed to add item');
+      },
+    })
+  );
 
-  const updateItemMutation = tsr.cart.updateItem.useMutation({
-    onMutate: async (vars) => {
-      await queryClient.cancelQueries({ queryKey: ['cart'] });
-      const previous = queryClient.getQueryData(['cart']);
-      queryClient.setQueryData(['cart'], (old: typeof data) => {
-        if (old?.status !== 200) return old;
-        return {
-          ...old,
-          body: {
-            ...old.body,
-            items: old.body.items.map((item) =>
-              item.id === vars.params.itemId
-                ? {
-                    ...item,
-                    quantity: vars.body.quantity,
-                    lineTotal: (Number.parseFloat(item.unitPrice) * vars.body.quantity).toFixed(2),
-                  }
-                : item
-            ),
-          },
-        };
-      });
-      return { previous };
-    },
-    onError: (_, __, context) => {
-      if (context?.previous) queryClient.setQueryData(['cart'], context.previous);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
-    },
-  });
-
-  const removeItemMutation = tsr.cart.removeItem.useMutation({
-    onMutate: async (vars) => {
-      await queryClient.cancelQueries({ queryKey: ['cart'] });
-      const previous = queryClient.getQueryData(['cart']);
-      queryClient.setQueryData(['cart'], (old: typeof data) => {
-        if (old?.status !== 200) return old;
-        return {
-          ...old,
-          body: {
-            ...old.body,
-            items: old.body.items.filter((item) => item.id !== vars.params.itemId),
-          },
-        };
-      });
-      return { previous };
-    },
-    onError: (_, __, context) => {
-      if (context?.previous) queryClient.setQueryData(['cart'], context.previous);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
-    },
-  });
+  const { updateItemMutation, removeItemMutation } = useCartOptimisticMutations();
 
   const isMutating = updateItemMutation.isPending || removeItemMutation.isPending;
 
@@ -191,7 +137,7 @@ export function ProductCardCartControls({ productId, productName }: Props) {
       <Button
         className="w-full"
         disabled={addItemMutation.isPending}
-        onClick={() => addItemMutation.mutate({ body: { productId, quantity: pendingQty } })}
+        onClick={() => addItemMutation.mutate({ productId, quantity: pendingQty })}
         aria-label={`Add ${productName} to cart`}
       >
         {addItemMutation.isPending ? 'Adding…' : 'Add to Cart'}

@@ -6,7 +6,6 @@ import './index.css';
 import { Toaster } from '@/components/ui/sonner';
 import { AuthProvider } from './contexts/auth-context';
 import { CartProvider } from './contexts/cart-context';
-import { tsr } from './lib/api-client';
 import { router } from './router';
 
 const queryClient = new QueryClient({
@@ -32,14 +31,12 @@ async function bootstrap() {
   createRoot(rootElement).render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
-        <tsr.ReactQueryProvider>
-          <AuthProvider>
-            <CartProvider>
-              <RouterProvider router={router} />
-              <Toaster />
-            </CartProvider>
-          </AuthProvider>
-        </tsr.ReactQueryProvider>
+        <AuthProvider>
+          <CartProvider>
+            <RouterProvider router={router} />
+            <Toaster />
+          </CartProvider>
+        </AuthProvider>
       </QueryClientProvider>
     </StrictMode>
   );

@@ -2,7 +2,7 @@
 
 ## Overview
 
-`@mercado/api-contracts` is a shared workspace package that defines the entire API surface using [ts-rest](https://ts-rest.com/) contracts and [Zod](https://zod.dev/) schemas. It is the single source of truth consumed by both backend (route handlers) and frontend (typed client).
+`@mercado/api-contracts` is a shared workspace package that defines the entire API surface using [oRPC](https://orpc.dev/) contracts (`@orpc/contract`'s `oc` builder) and [Zod](https://zod.dev/) schemas. It is the single source of truth consumed by both backend (route handlers) and frontend (typed client).
 
 **Key properties:**
 - Compile-time type safety across the full stack
@@ -14,55 +14,48 @@
 
 ```
 packages/api-contracts/src/
-├── index.ts                    # Public API — re-exports all contracts and schemas
-├── router.ts                   # Root apiContract combining all domain contracts
+├── index.ts                    # Public API — re-exports all module contracts and schemas
 ├── shared/
-│   ├── errors.ts               # Reusable error response schemas
+│   ├── errors.ts               # Reusable named error definitions (`commonErrors`)
 │   └── pagination.ts           # Pagination metadata schema
-└── {domain}/                   # One directory per domain (e.g. cart/, products/)
-    ├── contract.ts             # ts-rest contract definition
+└── {module}/                   # One directory per module (e.g. cart/, products/)
+    ├── contract.ts             # oRPC contract definition
     └── schemas.ts              # Zod I/O schemas
 ```
 
-Dependencies: `@ts-rest/core`, `zod` only.
+Dependencies: `@orpc/contract`, `zod` only.
 
 ## Contract Definition Pattern
 
-Each domain follows the same structure — a `contract.ts` using `initContract()` and a `schemas.ts` with Zod schemas:
+Each module follows the same structure — a `contract.ts` using the `oc` builder and a `schemas.ts` with Zod schemas:
 
 ```typescript
-// {domain}/contract.ts
-import { initContract } from '@ts-rest/core';
-import { someResponseSchema } from './schemas.js';
-import { validationErrorSchema, internalErrorSchema } from '../shared/errors.js';
+// {module}/contract.ts
+import { oc } from '@orpc/contract';
+import { z } from 'zod';
+import { commonErrors } from '../shared/errors.js';
+import { listResponseSchema } from './schemas.js';
 
-const c = initContract();
+const list = oc
+  .route({ method: 'GET', path: '/', summary: 'List items' })
+  .input(z.object({ page: z.coerce.number().default(1) }))
+  .output(listResponseSchema)
+  .errors({
+    VALIDATION_ERROR: commonErrors.VALIDATION_ERROR,
+  });
 
-export const exampleContract = c.router({
-  list: {
-    method: 'GET',
-    path: '/api/example',
-    query: z.object({ page: z.coerce.number().default(1) }),
-    responses: {
-      200: listResponseSchema,
-      400: validationErrorSchema,
-      500: internalErrorSchema,
-    },
-    summary: 'List items',
-  },
-  // ... more endpoints
-});
+export const exampleOrpcContract = { list /* , ...more endpoints */ };
 ```
 
-### Root Router
+Contract paths are relative to the module's Fastify mount prefix (e.g. `products` mounts at `/api/products`, so its `list` route is `/`, not `/api/products`) — see `apps/backend/src/app.ts` for the mount table and `apps/backend/src/config/orpc-mount.ts` for the mounting helper.
 
-All domain contracts are combined into a single `apiContract` in `router.ts`, enabling `api.cart.addItem()`, `api.products.list()`, etc. on both backend and frontend. See `router.ts` for the current list of domains.
+There is no single combined router at the contract-package level (unlike a ts-rest-style `apiContract`) — each module's contract is mounted independently. `apps/backend/src/config/openapi.ts` combines all six for spec generation only, prefixing each with its mount path via `enhanceContractRouter`.
 
 ## Shared Schemas
 
 ### Error Responses (`shared/errors.ts`)
 
-Reusable error schemas mapped to standard HTTP status codes (400, 401, 404, 409, 422, 500). All follow `{ error: string, details?: ... }` shape. Every contract endpoint includes the relevant error responses.
+`commonErrors` is a named-error map — `VALIDATION_ERROR` (400), `UNAUTHORIZED` (401), `NOT_FOUND` (404), `CONFLICT` (409), `UNPROCESSABLE_ENTITY` (422) — each carrying the Zod schema for that status's response body. Every contract endpoint declares `.errors({...})` with the subset of these codes it can return; 500 stays implicit (oRPC's default for unhandled throws). All error bodies follow `{ error: string, details?: ... }` shape on the wire (see "Error Wire Shape" below).
 
 ### Pagination (`shared/pagination.ts`)
 
@@ -70,78 +63,92 @@ Standard pagination metadata (`total`, `page`, `limit`, `totalPages`) used in pa
 
 ## Backend Consumption
 
-**Pattern:** ts-rest/fastify in `apps/backend/src/modules/*/api/*.routes.ts`:
+**Pattern:** `implement()` in `apps/backend/src/modules/*/api/*.routes.ts`:
 
 ```typescript
-import { productsContract } from '@mercado/api-contracts';
-import { initServer } from '@ts-rest/fastify';
+import { productsOrpcContract } from '@mercado/api-contracts';
+import { implement } from '@orpc/server';
 
-const s = initServer();
+const os = implement(productsOrpcContract).$context<{ userId?: string }>();
 
-const router = s.router(productsContract, {
-  list: async ({ query }) => {
-    const result = await productService.list(query);
-    return { status: 200, body: result };
-  },
+const list = os.list.handler(async ({ input, context, errors }) => {
+  return await productService.list(input);
 });
 
-s.registerRouter(productsContract, router, fastify, { logInitialization: true });
+export const productsOrpcRouter = os.router({ list });
 ```
 
-Routes are registered in `apps/backend/src/app.ts`, split into public and protected (behind auth plugin) scopes.
+The handler returns the success body directly (or throws `errors.CODE({data: {...}})` for a declared error) — no `{status, body}` tuple. Route files export the built router object; Fastify mounting happens centrally via `mountOrpcModule()` (see `apps/backend/src/config/orpc-mount.ts`), called from `apps/backend/src/app.ts`, which also defines each module's context builder and split into public and protected (behind `authPlugin`) Fastify scopes.
 
 ## Frontend Consumption
 
-**Dual client** setup in `apps/web/src/lib/api-client.ts`:
+**Single client** setup in `apps/web/src/lib/api-client.ts`, one `OpenAPILink`-backed client per module, wrapped with `createTanstackQueryUtils`:
 
 ```typescript
-import { apiContract } from '@mercado/api-contracts';
-import { initClient } from '@ts-rest/core';
-import { initTsrReactQuery } from '@ts-rest/react-query/v5';
+import { productsOrpcContract } from '@mercado/api-contracts';
+import { createORPCClient } from '@orpc/client';
+import { OpenAPILink } from '@orpc/openapi-client/fetch';
+import { createTanstackQueryUtils } from '@orpc/tanstack-query';
 
-// Standalone client — for contexts and non-React code
-export const api = initClient(apiContract, { baseUrl: '', credentials: 'include' });
+const link = new OpenAPILink(productsOrpcContract, { url: `${window.location.origin}/api/products` });
+const productsOrpcClient = createORPCClient(link);
 
-// React Query client — for components with hooks
-export const tsr = initTsrReactQuery(apiContract, { baseUrl: '', credentials: 'include' });
+export const orpc = {
+  products: createTanstackQueryUtils(productsOrpcClient, { path: ['products'] }),
+  // ...one entry per module
+};
 ```
+
+The `path` option namespaces each module's TanStack Query cache keys — omitting it lets same-named procedures in different modules (e.g. two modules with a `list` endpoint) collide on the same root key.
 
 **Query pattern** (components):
 
 ```typescript
-const { data, isPending } = tsr.products.list.useQuery({
-  queryKey: ['products', page],
-  queryData: { query: { status: 'active', page, limit: PAGE_SIZE } },
-});
+const { data, isPending } = useQuery(orpc.products.list.queryOptions({ input: { page } }));
 ```
 
-**Mutation pattern:**
+**Mutation pattern**, using `isDefinedError()` to narrow on a declared error code instead of an HTTP status:
 
 ```typescript
-const mutation = tsr.checkout.checkout.useMutation({
-  onSuccess: (response) => {
-    if (response.status === 200) { /* success */ }
-    else if (response.status === 422) { /* validation error */ }
-  },
-});
-mutation.mutate({ body: { shippingAddress: { ... } } });
+import { isDefinedError } from '@orpc/client';
+
+const mutation = useMutation(
+  orpc.checkout.checkout.mutationOptions({
+    onSuccess: (order) => { /* order is the success body directly */ },
+    onError: (err) => {
+      if (isDefinedError(err) && err.code === 'UNPROCESSABLE_ENTITY') { /* err.data.error */ }
+    },
+  })
+);
+mutation.mutate({ shippingAddress: { /* ... */ } });
 ```
 
-**Standalone client** (contexts):
+**Imperative calls** (contexts, non-hook code) use the raw client directly and `safe()` for non-throwing error handling:
 
 ```typescript
-const res = await api.auth.me();
-if (res.status === 200) { setUser(res.body); }
+import { safe, isDefinedError } from '@orpc/client';
+import { authClient } from '../lib/api-client';
+
+const [error, user] = await safe(authClient.me());
+if (!error) { setUser(user); }
 ```
+
+### Cache-key exactness
+
+`.key()` on a `createTanstackQueryUtils` procedure returns a **partial** key — safe for `invalidateQueries` only. `.queryKey()` returns the **exact** key `queryOptions()` uses internally — required for `getQueryData`/`setQueryData` (optimistic updates), since those need an exact match.
+
+### Error Wire Shape
+
+By default oRPC's error envelope is `{code, message, status, data, defined}`. This API instead keeps the historical flat shape (`{error: string, details?}`) via `customErrorResponseBodyEncoder`/`customErrorResponseBodyDecoder` (`apps/backend/src/config/orpc.ts`, `apps/web/src/lib/api-client.ts`) — the client reconstructs a typed, `isDefinedError()`-matchable error from the flat body using `statusToCommonErrorCode` (`packages/api-contracts/src/shared/errors.ts`), since the flat body alone drops the `code`.
 
 ## OpenAPI Generation
 
-OpenAPI 3.0.3 spec is generated from contracts via `@ts-rest/open-api` (`generateOpenApi()`). Two consumption points:
+OpenAPI 3.1 spec is generated from the module contracts via `@orpc/openapi`'s `OpenAPIGenerator` (`apps/backend/src/config/openapi.ts`, the single source of truth). Two consumption points:
 
-- **Development server**: `app.ts` generates the spec at startup and serves it via Swagger UI at `/docs`. The `@fastify/swagger` plugin is registered as a minimal shell required by `@fastify/swagger-ui`, but the actual spec is replaced with the ts-rest-generated one via `transformSpecification`.
-- **CLI generation**: `apps/backend/src/scripts/generate-openapi.ts` supports filtering by contract and outputs standalone JSON/YAML files for client generation and validation.
+- **Development server**: `app.ts` generates the spec at startup and serves it via Swagger UI at `/docs`. The `@fastify/swagger` plugin is registered as a minimal shell required by `@fastify/swagger-ui`, but the actual spec is replaced with the oRPC-generated one via `transformSpecification`.
+- **CLI generation**: `apps/backend/src/scripts/generate-openapi.ts` outputs standalone JSON/YAML files for validation (`pnpm openapi:generate:lint` runs Redocly against it) and client generation.
 
-Contracts' `summary` and `description` fields appear in the generated spec. Path params, query, body, and response schemas are all extracted automatically from Zod definitions.
+Contracts' `summary` and `description` fields appear in the generated spec. Path params, input, and output schemas are extracted automatically from Zod definitions via `ZodToJsonSchemaConverter`. Per-operation `security` (session-cookie vs. public) is derived from each module's Fastify mount scope, not inferred from the contract — see `requiresSessionCookie()` in `config/openapi.ts`.
 
 ## Conventions
 
@@ -165,14 +172,18 @@ export type Status = typeof statusValues[number];
 
 ### Response Shape
 
-All endpoints return discriminated unions keyed by HTTP status. Consumers check `status` to narrow the body type:
+Success responses are the plain output type — no status-keyed wrapper. Declared errors are thrown, not returned, and narrowed on the client via `isDefinedError(err) && err.code === 'CODE'`:
 
 ```typescript
-{ status: 200, body: SuccessType } | { status: 400, body: ValidationError } | ...
+// success
+const order = await orpc.checkout.checkout.call(input); // Order
+
+// error
+if (isDefinedError(err) && err.code === 'NOT_FOUND') { /* ... */ }
 ```
 
 ### Naming
 
-- Contract variables: `{domain}Contract` (e.g. `cartContract`)
+- Contract variables: `{module}OrpcContract` (e.g. `cartOrpcContract`)
 - Schema variables: `{entity}{Purpose}Schema` (e.g. `addItemSchema`, `cartResponseSchema`)
-- Paths: `/api/{domain}/{action}`
+- Contract paths: relative to the module's mount prefix (e.g. `/`, `/{id}`, `/by-slug/{slug}`) — never repeat the module name
