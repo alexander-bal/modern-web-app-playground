@@ -346,3 +346,100 @@ Each step was independently shippable and testable.
 9. **Fix OpenAPI generator.** Update `apps/backend/src/scripts/generate-openapi.ts` to import `apiContract` from `@mercado/api-contracts` instead of using the incomplete `AVAILABLE_CONTRACTS` array. Verify: `pnpm openapi:generate` produces a spec covering cart, products, and orders.
 
 10. **Clean up.** Delete the now-empty contract files from backend modules (`apps/backend/src/modules/*/api/*.contracts.ts`). Remove orphaned schema files that moved to the contracts package. Verify: `pnpm lint && pnpm test && pnpm typecheck`.
+
+## Addendum (2026-08-18): ts-rest vs oRPC Reconsidered
+
+### Why reconsidered
+
+oRPC (`@orpc/*`) has matured into a credible contract-first alternative in the same space as ts-rest and periodically comes up as "should we switch." This addendum evaluates that question directly against this codebase, so a future re-evaluation doesn't repeat the research.
+
+### Decision: keep ts-rest
+
+No migration. `@mercado/api-contracts` stays on ts-rest, for reasons specific to this codebase's actual shape (six live contracts — `auth`, `cart`, `products`, `orders`, `checkout`, `addresses` — all plain JSON, no streaming or file I/O):
+
+1. **No unmet need.** oRPC's differentiators over ts-rest — native `File`/`Blob`/`Date`/`BigInt` types without serialization wrappers, built-in streaming, validator-agnosticism — don't map to anything this API surface currently does. Every contract uses plain JSON request/response bodies.
+2. **Migration cost is real and the payoff is speculative.** The migration path above (10 steps, one module at a time, just to centralize contracts *within* the ts-rest ecosystem) shows what a contract-layer migration costs even without changing libraries. Swapping the library itself repeats that cost — six contract files, six route files, the frontend client, the OpenAPI generator — for library-level improvements with no corresponding pain point today.
+3. **Pattern consistency stays intact.** Every module currently follows the identical `contract.ts` + `schemas.ts` + `s.router(...)` pattern from this ADR. An engineer or LLM touching a seventh module copies an existing one. Introducing a second contract system — even for new modules only — would force a "which system does this module use?" judgment call with no clear rule, directly violating this codebase's own AI-friendliness principle against inconsistent implementations of the same concept (`docs/ai-principles.md`).
+
+**Revisit this if:** a module needs binary/file upload or download as a first-class typed contract input/output; a module needs server-sent streaming responses; or `@ts-rest/*` becomes unmaintained (check release history at that time, not this snapshot).
+
+### The Fastify-integration objection: verified and retracted
+
+An earlier pass at this comparison rejected oRPC primarily because oRPC's Fastify adapter mounts a single catch-all route (`fastify.all('/rpc/*', handler)`), which appeared to lose Fastify's per-route hook semantics — specifically, the bearer/session auth applied via `authPlugin`.
+
+That objection turned out to be **wrong** for this codebase. `apps/backend/src/app.ts` registers `authPlugin` once on a Fastify **scope**, not per route:
+
+```typescript
+await fastify.register(async (protectedInstance) => {
+  await protectedInstance.register(authPlugin);           // hook applies to this scope
+  await protectedInstance.register(registerOrdersRoutes);  // and everything registered inside it
+  await protectedInstance.register(registerCheckoutRoutes);
+  await protectedInstance.register(registerAddressesRoutes);
+});
+```
+
+Fastify's encapsulation applies a scope's hooks to everything registered inside that scope — including a single catch-all route, if one is registered there. The original objection assumed oRPC's catch-all would sit outside this mechanism; it doesn't, as long as it's mounted *inside* the same scope as `authPlugin` rather than at the app root.
+
+**This was proven, not just argued.** A prototype (`orders.orpc-prototype.ts`, since removed — see below) implemented two endpoints (`getById`, `listMyOrders`) with oRPC's `oc` contract builder, reusing the *same* Zod schemas and `ordersService` business logic as the real ts-rest routes, registered via oRPC's official `OpenAPIHandler` inside the same `protectedInstance` scope. Five integration tests confirmed:
+
+| Test | What it proved |
+|---|---|
+| Unauthenticated request → 401 | The scope's `authPlugin` hook applies to the oRPC catch-all route exactly like a real ts-rest route |
+| Authenticated request → 200, contains the caller's order | Contract validation, business-logic reuse, and context propagation all work end-to-end |
+| `createdAt`/`updatedAt` (`z.date()`) round-trip correctly | oRPC's non-JSON-safe type serialization works via the official handler (this breaks if you bypass it and hand-roll routing with oRPC's lower-level `call()` utility — investigated and rejected as a design, since `call()` skips path/query coercion, output serialization, and error-codec alignment that `OpenAPIHandler` provides) |
+| Missing order → 404, not 500 | oRPC's `errors()` map routes correctly through the handler's error codec |
+| `OpenAPIGenerator.generate(contract, ...)` returns the expected paths | OpenAPI generation works from the contract alone, independent of which handler serves requests |
+
+All 5 passed, alongside the full 296-test backend suite and `pnpm test:smoke`, unchanged.
+
+**The verified pattern, for a future migration to reconstruct from:**
+
+```typescript
+// Contract: oc builder, reusing existing Zod schemas — same shape as a ts-rest contract.
+const getByIdContract = oc
+  .route({ method: 'GET', path: '/orders/{id}' })
+  .input(z.object({ id: orderIdSchema }))
+  .output(orderResponseSchema)
+  .errors({ NOT_FOUND: { message: 'Order not found' } });
+
+// Implementation: implement(contract), reusing the existing service layer.
+const os = implement(contract).$context<{ userId: string }>();
+const getById = os.getById.handler(async ({ input, errors }) => {
+  try {
+    return await ordersService.getById(input.id);
+  } catch (error) {
+    if (error instanceof OrderNotFoundError) throw errors.NOT_FOUND();
+    throw error;
+  }
+});
+
+// Registration: official OpenAPIHandler, mounted inside the already-gated scope —
+// NOT at the app root, and NOT via hand-rolled call() + reply.send().
+export function registerOrdersOrpc(fastify: FastifyInstance) {
+  const handler = new OpenAPIHandler(router);
+  fastify.addContentTypeParser('*', (_req, _payload, done) => done(null, undefined));
+  fastify.all('/api/orpc/*', async (request, reply) => {
+    const { matched } = await handler.handle(request, reply, {
+      prefix: '/api/orpc',
+      context: { userId: request.user?.id ?? '' },
+    });
+    if (!matched) reply.status(404).send({ error: 'Not found' });
+  });
+}
+
+// app.ts — mounted inside the SAME scope as authPlugin, after the other modules:
+await fastify.register(async (protectedInstance) => {
+  await protectedInstance.register(authPlugin);
+  await protectedInstance.register(registerOrdersRoutes);
+  // ...
+  registerOrdersOrpc(protectedInstance); // inherits authPlugin's onRequest hook
+});
+```
+
+**Two gaps remain unverified**, since the prototype's two endpoints didn't exercise them — a future migration needs to resolve both before it can proceed past a single-module pilot:
+- oRPC's error envelope (`{code, message, data}` via `errors()`) vs. this app's current per-route `{error: string}` shape.
+- ts-rest's distinct-schema-per-status-code contracts (e.g. `orders.create`'s `201`/`400`/`409`/`500`, each with a different body shape) vs. oRPC's single `.output()` + `.errors()` model.
+
+Frontend-side risk (`OpenAPILink`, TanStack Query cache-key coherence with the existing `@ts-rest/react-query` `tsr` client) is also unverified — the prototype was backend-only.
+
+**The prototype code itself has been removed** — `orders.orpc-prototype.ts` and its test, and the `@orpc/contract`/`@orpc/server`/`@orpc/openapi`/`@orpc/zod` (`^1.15.0`) dependencies, existed only to produce the verification above and were deleted once it was confirmed. This codebase currently runs all six modules on ts-rest, with zero oRPC code in the tree. The code block above is what a future migration reconstructs from — re-verify package versions against the release history at that time rather than trusting `^1.15.0`.
