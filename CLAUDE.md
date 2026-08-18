@@ -4,3 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 See [AGENTS.md](./AGENTS.md) for the full project context, commands, architecture, and conventions shared across all AI agents.
 
+## Branching
+
+Always work on the `main` branch. Do not create other branches.
+
