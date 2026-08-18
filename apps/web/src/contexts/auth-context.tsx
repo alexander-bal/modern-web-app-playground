@@ -42,6 +42,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // setState runs after `await api.auth.me()` resolves, not synchronously in the effect body
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void checkAuth();
   }, [checkAuth]);
 

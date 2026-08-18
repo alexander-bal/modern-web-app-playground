@@ -12,21 +12,37 @@ export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
 # Enable corepack to ensure pnpm is available
 command -v corepack >/dev/null 2>&1 && corepack enable 2>/dev/null
 
+# Staged paths are listed one per line and NUL-fed to xargs so paths with spaces survive
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+
 # Format staged files only
-files=$(git diff --cached --name-only --diff-filter=ACMR | sed 's| |\\ |g')
-[ -n "$files" ] && pnpm biome format --write --no-errors-on-unmatched --files-ignore-unknown=true $files
+if [ -n "$staged" ]; then
+  printf '%s\n' "$staged" | tr '\n' '\0' |
+    xargs -0 pnpm biome format --write --no-errors-on-unmatched --files-ignore-unknown=true
+fi
 git update-index --again
 
-# ESLint check for staged TypeScript files (backend package)
-echo "Checking ESLint..."
-ts_files=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '^apps/backend/.*\.(ts|tsx)$' || true)
-if [ -n "$ts_files" ]; then
-  backend_ts_files=$(printf '%s\n' "$ts_files" | sed 's|^apps/backend/||')
-  printf '%s\n' "$backend_ts_files" | xargs pnpm --filter @mercado/backend exec eslint || {
-    echo "❌ ESLint check failed. Fix the errors or run 'pnpm lint:eslint:fix' to auto-fix."
+echo "Checking Biome lint..."
+if [ -n "$staged" ]; then
+  printf '%s\n' "$staged" | tr '\n' '\0' |
+    xargs -0 pnpm biome lint --no-errors-on-unmatched --files-ignore-unknown=true || {
+    echo "❌ Biome lint failed. Fix the errors or run 'pnpm lint:biome:fix' to auto-fix."
     exit 1
   }
 fi
+
+# ESLint runs per package so it resolves each package's own flat config
+echo "Checking ESLint..."
+for pkg in backend web; do
+  pkg_files=$(printf '%s\n' "$staged" | grep -E "^apps/$pkg/.*\.(ts|tsx)$" | sed "s|^apps/$pkg/||" || true)
+  if [ -n "$pkg_files" ]; then
+    printf '%s\n' "$pkg_files" | tr '\n' '\0' |
+      xargs -0 pnpm --filter "@mercado/$pkg" exec eslint --max-warnings 0 --no-warn-ignored || {
+      echo "❌ ESLint check failed. Fix the errors or run 'pnpm lint:eslint:fix' to auto-fix."
+      exit 1
+    }
+  fi
+done
 
 # Type coverage check
 echo "Running TypeScript type check..."
