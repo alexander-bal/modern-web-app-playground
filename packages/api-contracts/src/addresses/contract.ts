@@ -31,7 +31,7 @@ const update = oc
     inputStructure: 'detailed',
     summary: 'Update a saved address',
   })
-  .input(z.object({ params: z.object({ id: z.string().uuid() }), body: updateAddressBodySchema }))
+  .input(z.object({ params: z.object({ id: z.uuid() }), body: updateAddressBodySchema }))
   .output(savedAddressSchema)
   .errors({
     UNAUTHORIZED: commonErrors.UNAUTHORIZED,
@@ -47,7 +47,7 @@ const deleteAddress = oc
     inputStructure: 'detailed',
     summary: 'Delete a saved address',
   })
-  .input(z.object({ params: z.object({ id: z.string().uuid() }) }))
+  .input(z.object({ params: z.object({ id: z.uuid() }) }))
   .output(z.undefined())
   .errors({
     UNAUTHORIZED: commonErrors.UNAUTHORIZED,

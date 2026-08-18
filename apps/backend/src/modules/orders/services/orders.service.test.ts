@@ -1,3 +1,4 @@
+import { createOrderSchema } from '@mercado/api-contracts';
 import { describe, expect, it } from 'vitest';
 import { createTestOrderItem } from '../../../../tests/factories/order-items.js';
 import { createTestOrder } from '../../../../tests/factories/orders.js';
@@ -36,6 +37,30 @@ describe('Orders Service', () => {
       expect(result.status).toBe('draft');
       expect(result.subtotal).toBe('1500.00');
       expect(result.totalAmount).toBe('1760.00');
+    });
+
+    it('should default omitted monetary amounts to the "0.00" string form', async () => {
+      const input = {
+        status: 'draft' as const,
+        orderNumber: `ORD-DEFAULTS-${Date.now()}`,
+        orderDate: '2024-01-15',
+        currency: 'EUR',
+        subtotal: 1500,
+        totalAmount: 1500,
+      };
+
+      // Asserted on the schema too: the columns carry their own '0.00' DB default,
+      // so the persisted row alone would not prove the schema produced the string.
+      const parsed = createOrderSchema.parse(input);
+      expect(parsed.taxAmount).toBe('0.00');
+      expect(parsed.discountAmount).toBe('0.00');
+      expect(parsed.shippingAmount).toBe('0.00');
+
+      const result = await createOrderService(input, db);
+
+      expect(result.taxAmount).toBe('0.00');
+      expect(result.discountAmount).toBe('0.00');
+      expect(result.shippingAmount).toBe('0.00');
     });
 
     it('should throw OrderValidationError for duplicate order number', async () => {

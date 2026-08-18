@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const savedAddressSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   fullName: z.string(),
   addressLine1: z.string(),
   addressLine2: z.string().nullable(),

@@ -13,7 +13,7 @@ catalog:
   '@orpc/client': ^1.15.0
   '@orpc/openapi-client': ^1.15.0
   '@orpc/tanstack-query': ^1.15.0
-  zod: ^3.25.76
+  zod: ^4.4.3
   eslint: ^9.39.1
   '@eslint/js': ^9.39.1
   typescript-eslint: ^8.67.0

@@ -14,8 +14,8 @@ import {
   OrderNotCheckoutEligibleError,
 } from './checkout.service.js';
 
-const TEST_USER_ID = '00000000-0000-0000-0000-000000000001';
-const TEST_USER_ID_2 = '00000000-0000-0000-0000-000000000002';
+const TEST_USER_ID = '00000000-0000-7000-8000-000000000001';
+const TEST_USER_ID_2 = '00000000-0000-7000-8000-000000000002';
 
 describe('Checkout Service', () => {
   let testProduct: Product;
@@ -378,7 +378,7 @@ describe('Checkout Service', () => {
     const cart = await createTestOrder({
       status: 'cart',
       userId: TEST_USER_ID,
-      cartToken: '00000000-0000-0000-0000-000000000099',
+      cartToken: '00000000-0000-7000-8000-000000000099',
       subtotal: '75.00',
       totalAmount: '75.00',
       currency: 'EUR',

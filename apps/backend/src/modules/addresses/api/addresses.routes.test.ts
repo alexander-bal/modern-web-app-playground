@@ -7,7 +7,7 @@ import { addresses, db, session, user } from '../../../db/index.js';
 import { addressesService } from '../services/addresses.service.js';
 
 const ADDRESS_LIMIT = 20;
-const UNKNOWN_ADDRESS_ID = '00000000-0000-0000-0000-0000000000ff';
+const UNKNOWN_ADDRESS_ID = '00000000-0000-7000-8000-0000000000ff';
 
 // The auth preHandler rejects before the route handler runs, so callers never see the
 // handler's own `Authentication required` shape.
@@ -252,6 +252,19 @@ describe('Addresses Routes', () => {
 
       expect(response.statusCode).toBe(404);
       expect(response.json()).toEqual({ error: 'Address not found' });
+    });
+
+    it('rejects a correctly shaped but non-RFC-9562 id before reaching the service', async () => {
+      const deleteSpy = vi.spyOn(addressesService, 'delete');
+
+      const response = await fastify.inject({
+        method: 'DELETE',
+        url: '/api/v1/addresses/00000000-0000-0000-0000-0000000000ff',
+        cookies: { 'better-auth.session_token': sessionToken },
+      });
+
+      expect(response.statusCode).toBe(400);
+      expect(deleteSpy).not.toHaveBeenCalled();
     });
 
     it('reports a service failure as 500 rather than surfacing the error', async () => {

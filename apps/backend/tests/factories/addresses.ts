@@ -4,7 +4,7 @@ import type { Address, NewAddress } from '../../src/db/schema.js';
 
 function buildTestAddressData(overrides: Partial<NewAddress> = {}): NewAddress {
   return {
-    userId: overrides.userId ?? '00000000-0000-0000-0000-000000000001',
+    userId: overrides.userId ?? '00000000-0000-7000-8000-000000000001',
     fullName: overrides.fullName ?? 'Test User',
     addressLine1: overrides.addressLine1 ?? '123 Test St',
     addressLine2: overrides.addressLine2 !== undefined ? overrides.addressLine2 : null,

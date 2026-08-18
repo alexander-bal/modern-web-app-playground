@@ -7,7 +7,7 @@ import {
 } from '@mercado/api-contracts';
 import { enhanceContractRouter } from '@orpc/contract';
 import { OpenAPIGenerator } from '@orpc/openapi';
-import { ZodToJsonSchemaConverter } from '@orpc/zod';
+import { ZodToJsonSchemaConverter } from '@orpc/zod/zod4';
 import type { JSONSchema } from 'json-schema-typed/draft-2020-12';
 import type { OpenAPIV3_1 } from 'openapi-types';
 

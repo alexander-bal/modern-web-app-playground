@@ -22,8 +22,8 @@ const isDev = () => {
  * - Local development without .env file (uses sensible defaults)
  * - Production/staging requires explicit configuration (fails fast if missing)
  */
-const devDefault = <T extends z.ZodTypeAny>(schema: T, defaultValue: z.infer<T>): T => {
-  return (isDev() ? schema.default(defaultValue) : schema) as T;
+const devDefault = <T extends z.ZodType>(schema: T, defaultValue: z.infer<T>): T => {
+  return (isDev() ? schema.default(defaultValue as never) : schema) as T;
 };
 
 export const env = createEnv({
@@ -37,7 +37,7 @@ export const env = createEnv({
     // Database Configuration
     // Dev: Uses local PostgreSQL. Production: REQUIRED
     DATABASE_URL: devDefault(
-      z.string().url().min(1),
+      z.url().min(1),
       'postgresql://user:password@localhost:5432/mercado_dev'
     ),
 
@@ -50,7 +50,7 @@ export const env = createEnv({
 
     // Core Microservice API Configuration
     // Dev: Points to localhost:4000 with dummy key. Production: REQUIRED
-    CORE_API_URL: devDefault(z.string().url(), 'http://localhost:4000'),
+    CORE_API_URL: devDefault(z.url(), 'http://localhost:4000'),
     CORE_API_KEY: devDefault(z.string().min(1), 'dev-core-api-key'),
     CORE_API_TIMEOUT: z.coerce.number().positive().default(30000),
     CORE_API_RETRY_ATTEMPTS: z.coerce.number().positive().default(3),
@@ -74,8 +74,8 @@ export const env = createEnv({
       z.string().min(32),
       'dev-only-better-auth-secret-please-change-me'
     ),
-    BETTER_AUTH_URL: devDefault(z.string().url(), 'http://localhost:3000'),
-    WEB_APP_URL: devDefault(z.string().url(), 'http://localhost:5173'),
+    BETTER_AUTH_URL: devDefault(z.url(), 'http://localhost:3000'),
+    WEB_APP_URL: devDefault(z.url(), 'http://localhost:5173'),
 
     // Automatic Job Generation Configuration
     JOB_GENERATION_DUE_OFFSET_DAYS: z.coerce.number().positive().default(2),
@@ -85,7 +85,7 @@ export const env = createEnv({
     // VIES API (EU VAT validation)
     // Dev: Uses dummy key. Production: REQUIRED
     VIES_API_KEY: devDefault(z.string().min(1), 'dev-vies-api-key'),
-    VIES_API_BASE_URL: z.string().url().default('https://api.vatcheckapi.com/v2'),
+    VIES_API_BASE_URL: z.url().default('https://api.vatcheckapi.com/v2'),
     VIES_API_TIMEOUT: z.coerce.number().positive().default(30000),
     VIES_API_RETRY_ATTEMPTS: z.coerce.number().nonnegative().default(2),
     VIES_API_RETRY_DELAY_MS: z.coerce.number().positive().default(1000),

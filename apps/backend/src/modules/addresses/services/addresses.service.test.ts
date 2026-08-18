@@ -11,8 +11,8 @@ import {
   updateAddressService,
 } from './addresses.service.js';
 
-const TEST_USER_ID = '00000000-0000-0000-0000-000000000010';
-const OTHER_USER_ID = '00000000-0000-0000-0000-000000000011';
+const TEST_USER_ID = '00000000-0000-7000-8000-000000000010';
+const OTHER_USER_ID = '00000000-0000-7000-8000-000000000011';
 
 const baseAddress = {
   fullName: 'Jane Doe',

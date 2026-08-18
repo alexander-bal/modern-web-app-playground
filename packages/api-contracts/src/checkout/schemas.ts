@@ -18,9 +18,9 @@ export const addressSchema = z.object({
 export const checkoutRequestSchema = z
   .object({
     shippingAddress: addressSchema.optional(),
-    shippingAddressId: z.string().uuid().optional(),
+    shippingAddressId: z.uuid().optional(),
     billingAddress: addressSchema.optional(),
-    billingAddressId: z.string().uuid().optional(),
+    billingAddressId: z.uuid().optional(),
     billingSameAsShipping: z.boolean().default(false),
     saveShippingAddress: z.boolean().optional(),
     saveBillingAddress: z.boolean().optional(),
@@ -29,14 +29,14 @@ export const checkoutRequestSchema = z
     // Shipping: exactly one of shippingAddress or shippingAddressId
     if (data.shippingAddress && data.shippingAddressId) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         message: 'Provide either shippingAddress or shippingAddressId, not both',
         path: ['shippingAddressId'],
       });
     }
     if (!data.shippingAddress && !data.shippingAddressId) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         message: 'Shipping address is required',
         path: ['shippingAddress'],
       });
@@ -44,14 +44,14 @@ export const checkoutRequestSchema = z
     // Cannot save an already-saved address
     if (data.saveShippingAddress && data.shippingAddressId) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         message: 'Cannot save an already-saved address',
         path: ['saveShippingAddress'],
       });
     }
     if (data.saveBillingAddress && data.billingAddressId) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         message: 'Cannot save an already-saved address',
         path: ['saveBillingAddress'],
       });
@@ -59,7 +59,7 @@ export const checkoutRequestSchema = z
     // Billing: cannot have both billingAddress and billingAddressId
     if (data.billingAddress && data.billingAddressId) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: 'custom',
         message: 'Provide either billingAddress or billingAddressId, not both',
         path: ['billingAddressId'],
       });
@@ -67,7 +67,7 @@ export const checkoutRequestSchema = z
   });
 
 export const checkoutResponseSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   orderNumber: z.string(),
   status: z.string(),
   orderDate: z.string(),

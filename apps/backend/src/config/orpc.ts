@@ -24,7 +24,7 @@ const validationErrorInterceptor: ClientInterceptor = onError((error) => {
     error.code === 'BAD_REQUEST' &&
     error.cause instanceof ValidationError
   ) {
-    const zodError = new z.ZodError(error.cause.issues as z.ZodIssue[]);
+    const zodError = new z.ZodError(error.cause.issues as z.core.$ZodIssue[]);
 
     throw new ORPCError('VALIDATION_ERROR', {
       status: 400,

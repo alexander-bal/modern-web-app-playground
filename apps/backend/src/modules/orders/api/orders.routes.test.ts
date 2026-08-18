@@ -563,7 +563,7 @@ describe('Orders Routes - Integration Tests', () => {
   });
 
   describe('service error mapping', () => {
-    const MISSING_ID = '00000000-0000-0000-0000-0000000000ff';
+    const MISSING_ID = '00000000-0000-7000-8000-0000000000ff';
     const validCreateBody = {
       orderNumber: 'ORD-MAPPING-1',
       orderDate: '2024-01-15',

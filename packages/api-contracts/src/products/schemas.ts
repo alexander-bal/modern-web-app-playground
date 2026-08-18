@@ -14,7 +14,7 @@ export const listProductsQuerySchema = z.object({
 });
 
 export const productResponseSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   createdAt: z.date(),
   updatedAt: z.date(),
   status: productStatusSchema,

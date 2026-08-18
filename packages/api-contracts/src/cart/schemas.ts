@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const addItemSchema = z.object({
-  productId: z.string().uuid('Invalid product ID'),
+  productId: z.uuid('Invalid product ID'),
   quantity: z.number().int().min(1, 'Quantity must be at least 1'),
 });
 
@@ -10,12 +10,12 @@ export const updateItemSchema = z.object({
 });
 
 export const mergeCartSchema = z.object({
-  cartToken: z.string().uuid('Invalid cart token'),
+  cartToken: z.uuid('Invalid cart token'),
 });
 
 export const cartItemSchema = z.object({
-  id: z.string().uuid(),
-  productId: z.string().uuid(),
+  id: z.uuid(),
+  productId: z.uuid(),
   productName: z.string(),
   productSku: z.string(),
   productImageUrl: z.string().nullable(),

@@ -49,8 +49,8 @@ catalogs:
       specifier: npm:typescript@^7.0.2
       version: 7.0.2
     zod:
-      specifier: ^3.25.76
-      version: 3.25.76
+      specifier: ^4.4.3
+      version: 4.4.3
 
 overrides:
   esbuild@<=0.24.2: '>=0.25.0'
@@ -117,13 +117,13 @@ importers:
         version: 1.15.0(@opentelemetry/api@1.9.1)
       '@orpc/zod':
         specifier: 'catalog:'
-        version: 1.15.0(@opentelemetry/api@1.9.1)(@orpc/contract@1.15.0(@opentelemetry/api@1.9.1))(@orpc/server@1.15.0(@opentelemetry/api@1.9.1)(fastify@5.11.3))(fastify@5.11.3)(zod@3.25.76)
+        version: 1.15.0(@opentelemetry/api@1.9.1)(@orpc/contract@1.15.0(@opentelemetry/api@1.9.1))(@orpc/server@1.15.0(@opentelemetry/api@1.9.1)(fastify@5.11.3))(fastify@5.11.3)(zod@4.4.3)
       '@sentry/node':
         specifier: ^10.30.0
         version: 10.70.0(@opentelemetry/core@2.10.0(@opentelemetry/api@1.9.1))(supports-color@8.1.1)
       '@t3-oss/env-core':
-        specifier: ^0.10.1
-        version: 0.10.1(@typescript/typescript6@6.0.2)(zod@3.25.76)
+        specifier: ^0.13.11
+        version: 0.13.11(@typescript/typescript6@6.0.2)(zod@4.4.3)
       '@temporalio/activity':
         specifier: ^1.13.2
         version: 1.22.0
@@ -165,10 +165,10 @@ importers:
         version: 2.9.0
       zod:
         specifier: 'catalog:'
-        version: 3.25.76
+        version: 4.4.3
       zod-validation-error:
         specifier: ^5.0.0
-        version: 5.0.0(zod@3.25.76)
+        version: 5.0.0(zod@4.4.3)
     devDependencies:
       '@eslint/js':
         specifier: 'catalog:'
@@ -365,7 +365,7 @@ importers:
         version: 1.15.0(@opentelemetry/api@1.9.1)
       zod:
         specifier: 'catalog:'
-        version: 3.25.76
+        version: 4.4.3
     devDependencies:
       typescript:
         specifier: 'catalog:'
@@ -2327,13 +2327,21 @@ packages:
   '@swc/types@0.1.28':
     resolution: {integrity: sha512-V6Mnml8v09QALx6K0elJ7o9K/MkVDtW3t6L+7Ou/JcWtb3xwId2AH4FeOceySd2JaO87IMw4+6vSZxLm34LPbw==}
 
-  '@t3-oss/env-core@0.10.1':
-    resolution: {integrity: sha512-GcKZiCfWks5CTxhezn9k5zWX3sMDIYf6Kaxy2Gx9YEQftFcz8hDRN56hcbylyAO3t4jQnQ5ifLawINsNgCDpOg==}
+  '@t3-oss/env-core@0.13.11':
+    resolution: {integrity: sha512-sM7GYY+KL7H/Hl0BE0inWfk3nRHZOLhmVn7sHGxaZt9FAR6KqREXAE+6TqKfiavfXmpRxO/OZ2QgKRd+oiBYRQ==}
     peerDependencies:
+      arktype: ^2.1.0
       typescript: '>=5.0.0'
-      zod: ^3.0.0
+      valibot: ^1.0.0-beta.7 || ^1.0.0
+      zod: ^3.24.0 || ^4.0.0
     peerDependenciesMeta:
+      arktype:
+        optional: true
       typescript:
+        optional: true
+      valibot:
+        optional: true
+      zod:
         optional: true
 
   '@tailwindcss/node@4.3.3':
@@ -7362,7 +7370,7 @@ snapshots:
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
-  '@orpc/zod@1.15.0(@opentelemetry/api@1.9.1)(@orpc/contract@1.15.0(@opentelemetry/api@1.9.1))(@orpc/server@1.15.0(@opentelemetry/api@1.9.1)(fastify@5.11.3))(fastify@5.11.3)(zod@3.25.76)':
+  '@orpc/zod@1.15.0(@opentelemetry/api@1.9.1)(@orpc/contract@1.15.0(@opentelemetry/api@1.9.1))(@orpc/server@1.15.0(@opentelemetry/api@1.9.1)(fastify@5.11.3))(fastify@5.11.3)(zod@4.4.3)':
     dependencies:
       '@orpc/contract': 1.15.0(@opentelemetry/api@1.9.1)
       '@orpc/json-schema': 1.15.0(@opentelemetry/api@1.9.1)(fastify@5.11.3)
@@ -7371,7 +7379,7 @@ snapshots:
       '@orpc/shared': 1.15.0(@opentelemetry/api@1.9.1)
       escape-string-regexp: 5.0.0
       wildcard-match: 5.1.4
-      zod: 3.25.76
+      zod: 4.4.3
     transitivePeerDependencies:
       - '@opentelemetry/api'
       - crossws
@@ -7688,11 +7696,10 @@ snapshots:
     dependencies:
       '@swc/counter': 0.1.3
 
-  '@t3-oss/env-core@0.10.1(@typescript/typescript6@6.0.2)(zod@3.25.76)':
-    dependencies:
-      zod: 3.25.76
+  '@t3-oss/env-core@0.13.11(@typescript/typescript6@6.0.2)(zod@4.4.3)':
     optionalDependencies:
       typescript: '@typescript/typescript6@6.0.2'
+      zod: 4.4.3
 
   '@tailwindcss/node@4.3.3':
     dependencies:
@@ -11115,9 +11122,9 @@ snapshots:
     dependencies:
       zod: 4.4.3
 
-  zod-validation-error@5.0.0(zod@3.25.76):
+  zod-validation-error@5.0.0(zod@4.4.3):
     dependencies:
-      zod: 3.25.76
+      zod: 4.4.3
 
   zod@3.25.76: {}
 

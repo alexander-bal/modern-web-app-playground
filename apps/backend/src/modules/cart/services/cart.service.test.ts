@@ -16,8 +16,8 @@ import {
   updateItemQuantity,
 } from './cart.service.js';
 
-const TEST_USER_ID = '00000000-0000-0000-0000-000000000001';
-const INVALID_UUID = '00000000-0000-0000-0000-000000000099';
+const TEST_USER_ID = '00000000-0000-7000-8000-000000000001';
+const INVALID_UUID = '00000000-0000-7000-8000-000000000099';
 
 describe('Cart Service', () => {
   let testProduct: Product;

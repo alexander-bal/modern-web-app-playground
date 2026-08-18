@@ -96,7 +96,7 @@
     "@orpc/shared": "catalog:",
     "@orpc/zod": "catalog:",
     "@sentry/node": "^10.30.0",
-    "@t3-oss/env-core": "^0.10.1",
+    "@t3-oss/env-core": "^0.13.11",
     "@temporalio/activity": "^1.13.2",
     "@temporalio/client": "^1.13.2",
     "@temporalio/worker": "^1.13.2",

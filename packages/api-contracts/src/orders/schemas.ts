@@ -15,7 +15,7 @@ export type OrderStatus = (typeof orderStatusEnum)[number];
 
 export const orderStatusSchema = z.enum(orderStatusEnum);
 
-export const orderIdSchema = z.string().uuid('Invalid order ID');
+export const orderIdSchema = z.uuid('Invalid order ID');
 
 const orderNumberSchema = z.string().min(1, 'Order number is required');
 
@@ -125,7 +125,7 @@ export const listOrdersQuerySchema = z.object({
 });
 
 export const orderResponseSchema = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   createdAt: z.date(),
   updatedAt: z.date(),
   status: orderStatusSchema,
@@ -149,7 +149,7 @@ export const orderResponseSchema = z.object({
 
 export const orderDeleteResponseSchema = z.object({
   success: z.boolean(),
-  id: z.string().uuid(),
+  id: z.uuid(),
 });
 
 export const ordersListResponseSchema = z.object({

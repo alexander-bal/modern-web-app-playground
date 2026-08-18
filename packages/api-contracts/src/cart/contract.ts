@@ -26,7 +26,7 @@ const updateItem = oc
   })
   .input(
     z.object({
-      params: z.object({ itemId: z.string().uuid('Invalid item ID') }),
+      params: z.object({ itemId: z.uuid('Invalid item ID') }),
       body: updateItemSchema,
     })
   )
@@ -43,7 +43,7 @@ const removeItem = oc
     inputStructure: 'detailed',
     summary: 'Remove item from cart',
   })
-  .input(z.object({ params: z.object({ itemId: z.string().uuid('Invalid item ID') }) }))
+  .input(z.object({ params: z.object({ itemId: z.uuid('Invalid item ID') }) }))
   .output(cartResponseSchema)
   .errors({
     NOT_FOUND: commonErrors.NOT_FOUND,
