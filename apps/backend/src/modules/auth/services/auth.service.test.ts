@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import argon2 from 'argon2';
 import { eq } from 'drizzle-orm';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestUser } from '../../../../tests/factories/users.js';
 import { db, sessions, users } from '../../../db/index.js';
 import {
@@ -142,26 +142,22 @@ describe('Auth Service', () => {
       await expect(login(input, undefined, db)).rejects.toThrow(InvalidCredentialsError);
     });
 
-    it('should have similar timing for not-found and wrong-password paths', async () => {
-      const unknownEmailInput = {
-        email: 'unknown@example.com',
-        password: testPassword,
-      };
+    it('should verify a password even when the email is unknown', async () => {
+      // Doing the same work on both paths is what stops response time from
+      // revealing whether an account exists. Asserting the work happens is
+      // stable, where asserting the resulting durations match is not: argon2's
+      // own run-to-run spread is wider than the gap a missing verify opens.
+      const verifySpy = vi.spyOn(argon2, 'verify');
 
-      const wrongPasswordInput = {
-        email: testEmail,
-        password: 'wrongpassword',
-      };
+      try {
+        await login({ email: 'unknown@example.com', password: testPassword }, undefined, db).catch(
+          () => {}
+        );
 
-      const start1 = Date.now();
-      await login(unknownEmailInput, undefined, db).catch(() => {});
-      const duration1 = Date.now() - start1;
-
-      const start2 = Date.now();
-      await login(wrongPasswordInput, undefined, db).catch(() => {});
-      const duration2 = Date.now() - start2;
-
-      expect(Math.abs(duration1 - duration2)).toBeLessThan(100);
+        expect(verifySpy).toHaveBeenCalledTimes(1);
+      } finally {
+        verifySpy.mockRestore();
+      }
     });
   });
 

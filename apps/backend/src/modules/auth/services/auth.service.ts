@@ -130,6 +130,26 @@ export async function register(
   };
 }
 
+let enumerationGuardHash: Promise<string> | undefined;
+
+// Verifying a throwaway hash costs what a real password check costs, so the
+// response time of an unknown email cannot reveal whether the account exists.
+// The parameters must match the ones register hashes with for the costs to
+// align. Clearing the cached hash on failure keeps a transient error from
+// leaving every later lookup on the cheap path.
+async function equalizePasswordCheckCost(password: string): Promise<void> {
+  try {
+    if (!enumerationGuardHash) {
+      enumerationGuardHash = argon2.hash(randomBytes(32).toString('hex'), {
+        type: argon2.argon2id,
+      });
+    }
+    await argon2.verify(await enumerationGuardHash, password);
+  } catch {
+    enumerationGuardHash = undefined;
+  }
+}
+
 /**
  * Login user with email and password
  * Includes cart merge if guest cart token provided
@@ -143,8 +163,7 @@ export async function login(
   const user = await findUserByEmail(input.email, database);
 
   if (!user) {
-    // Fixed delay to prevent timing-based enumeration
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await equalizePasswordCheckCost(input.password);
     throw new InvalidCredentialsError();
   }
 
