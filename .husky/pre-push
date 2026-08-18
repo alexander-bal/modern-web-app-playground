@@ -6,8 +6,8 @@
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
 
-# Add common Node.js installation paths
-export PATH="/usr/local/bin:/opt/homebrew/bin:$PATH"
+# Add common Node.js installation paths as a fallback, after nvm's own PATH entries
+export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin"
 
 # Enable corepack to ensure pnpm is available
 command -v corepack >/dev/null 2>&1 && corepack enable 2>/dev/null
