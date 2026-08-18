@@ -127,7 +127,8 @@
     "Forders",
     "lapt",
     "wirele",
-    "headph"
+    "headph",
+    "requestfailed"
   ],
   "ignorePaths": [
     "**/node_modules/**",
@@ -137,7 +138,10 @@
     ".git/**",
     "*.log",
     "pnpm-lock.yaml",
-    "apps/web/public/vite.svg"
+    "apps/web/public/vite.svg",
+    "apps/web/public/mockServiceWorker.js",
+    "**/playwright-report/**",
+    "**/test-results/**"
   ],
   "ignoreRegExpList": ["/\\b[A-Z]{2,}\\b/g", "/\\b\\d+(\\.\\d+)*\\b/g"],
   "dictionaries": [
