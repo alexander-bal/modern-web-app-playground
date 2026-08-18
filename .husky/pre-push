@@ -22,6 +22,12 @@ DATABASE_URL="postgresql://user:password@localhost:5432/mercado_test" \
   exit 1
 }
 
+echo "Building all packages..."
+pnpm build || {
+  echo "❌ Build failed. Fix the errors or run 'pnpm build' to reproduce."
+  exit 1
+}
+
 echo "Running unit tests..."
 pnpm test || {
   echo "❌ Unit tests failed. Fix the failing tests before pushing."
