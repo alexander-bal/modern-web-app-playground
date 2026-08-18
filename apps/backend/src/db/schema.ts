@@ -157,6 +157,11 @@ export const orders = pgTable(
     index('idx_orders_order_date').on(table.orderDate),
     index('idx_orders_payment_transaction_id').on(table.paymentTransactionId),
     index('idx_orders_user_id').on(table.userId),
+    // A user has at most one open cart; without this, concurrent add-to-cart requests
+    // each insert their own and the extra one outlives checkout.
+    uniqueIndex('idx_orders_user_cart')
+      .on(table.userId)
+      .where(sql`${table.userId} IS NOT NULL AND ${table.status} = 'cart'`),
   ]
 );
 

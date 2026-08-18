@@ -3,6 +3,9 @@ import type { Database } from '../../../db/index.js';
 import { db, orderItems, orders } from '../../../db/index.js';
 import type { OrderItem } from '../../../db/schema.js';
 
+/** Matches the idx_orders_user_cart partial unique index. */
+const userCartPredicate = sql`${orders.userId} IS NOT NULL AND ${orders.status} = 'cart'`;
+
 /**
  * Find cart (order with status='cart') by user ID
  * @param userId User ID
@@ -57,7 +60,7 @@ export async function findCartByToken(cartToken: string, database: Database = db
  * Create a new cart order
  * @param data Cart order data
  * @param database Database instance
- * @returns Created cart order
+ * @returns Created cart order, or null if the user already gained one concurrently
  */
 export async function createCartOrder(
   data: {
@@ -84,13 +87,10 @@ export async function createCartOrder(
       discountAmount: '0.00',
       shippingAmount: '0.00',
     })
+    .onConflictDoNothing({ target: orders.userId, where: userCartPredicate })
     .returning();
 
-  if (!results[0]) {
-    throw new Error('Failed to create cart order');
-  }
-
-  return results[0];
+  return results[0] ?? null;
 }
 
 /**
@@ -235,18 +235,19 @@ export async function deleteCartOrder(orderId: string, database: Database = db):
  * @param database Database instance
  */
 export async function updateCartTotals(orderId: string, database: Database = db): Promise<void> {
-  const items = await findCartItems(orderId, database);
-
-  const subtotal = items.reduce((sum, item) => {
-    const lineTotal = Number.parseFloat(item.unitPrice) * Number.parseFloat(item.quantity);
-    return sum + lineTotal;
-  }, 0);
+  // Summed in the UPDATE rather than read-then-written, so concurrent adds to the same
+  // cart cannot overwrite each other with a subtotal computed before the other's item.
+  const subtotal = sql`COALESCE((
+    SELECT SUM(${orderItems.unitPrice} * ${orderItems.quantity})
+    FROM ${orderItems}
+    WHERE ${orderItems.orderId} = ${orderId}
+  ), 0)::numeric(15,2)::text`;
 
   await database
     .update(orders)
     .set({
-      subtotal: subtotal.toFixed(2),
-      totalAmount: subtotal.toFixed(2),
+      subtotal,
+      totalAmount: subtotal,
       updatedAt: sql`now()`,
     })
     .where(eq(orders.id, orderId));

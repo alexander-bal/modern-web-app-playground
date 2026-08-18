@@ -152,6 +152,8 @@ export async function addItemToCart(
     cart = await findCartByToken(identifier.cartToken, database);
   }
 
+  let createdCart = false;
+
   if (!cart) {
     newCartToken = identifier.type === 'guest' ? randomUUID() : undefined;
 
@@ -166,14 +168,29 @@ export async function addItemToCart(
       database
     );
 
-    logger.info(
-      { cartId: cart.id, userId: cart.userId, cartToken: cart.cartToken },
-      'Created new cart'
-    );
-  } else {
-    if (cart.currency !== product.currency) {
-      throw new CurrencyMismatchError(cart.currency, product.currency);
+    if (cart) {
+      createdCart = true;
+      logger.info(
+        { cartId: cart.id, userId: cart.userId, cartToken: cart.cartToken },
+        'Created new cart'
+      );
+    } else {
+      // A concurrent request created this user's cart between the lookup and the insert.
+      newCartToken = undefined;
+      cart = await findCartByUserId((identifier as { userId: string }).userId, database);
+
+      if (!cart) {
+        throw new Error('Failed to create cart order');
+      }
+
+      logger.info({ cartId: cart.id, userId: cart.userId }, 'Reused concurrently created cart');
     }
+  }
+
+  // Any cart this request did not create carries a currency the product must match,
+  // including one adopted after losing the creation race.
+  if (!createdCart && cart.currency !== product.currency) {
+    throw new CurrencyMismatchError(cart.currency, product.currency);
   }
 
   await upsertCartItem(

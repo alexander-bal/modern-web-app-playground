@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createTestProduct } from '../../../../tests/factories/products.js';
 import { db, orderItems, orders, products } from '../../../db/index.js';
@@ -98,6 +98,53 @@ describe('Cart Service', () => {
   });
 
   describe('addItemToCart', () => {
+    it('creates only one cart when the same user adds items concurrently', async () => {
+      const CONCURRENT_ADDS = 6;
+
+      await Promise.all(
+        Array.from({ length: CONCURRENT_ADDS }, () =>
+          addItemToCart({ type: 'user', userId: TEST_USER_ID }, testProduct.id, 1, db)
+        )
+      );
+
+      const carts = await db
+        .select()
+        .from(orders)
+        .where(and(eq(orders.userId, TEST_USER_ID), eq(orders.status, 'cart')));
+
+      expect(carts).toHaveLength(1);
+
+      // Every add must land on that one cart — a request that loses the creation race
+      // still has to apply its item.
+      const cart = await getCart({ type: 'user', userId: TEST_USER_ID }, db);
+      expect(cart.items).toHaveLength(1);
+      expect(cart.items[0]?.quantity).toBe(CONCURRENT_ADDS);
+      expect(cart.subtotal).toBe('150.00');
+    });
+
+    it('still enforces the cart currency when a concurrent add wins the race', async () => {
+      const usdProduct = await createTestProduct({
+        status: 'active',
+        currency: 'USD',
+        price: '30.00',
+      });
+
+      // Whichever insert wins, the loser adopts that cart and must reject the mismatch
+      // rather than mixing currencies inside one cart.
+      const results = await Promise.allSettled([
+        addItemToCart({ type: 'user', userId: TEST_USER_ID }, testProduct.id, 1, db),
+        addItemToCart({ type: 'user', userId: TEST_USER_ID }, usdProduct.id, 1, db),
+      ]);
+
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+      const rejected = results.find((r) => r.status === 'rejected');
+      expect(rejected?.reason).toBeInstanceOf(CurrencyMismatchError);
+
+      const cart = await getCart({ type: 'user', userId: TEST_USER_ID }, db);
+      expect(cart.items).toHaveLength(1);
+      expect(new Set(cart.items.map((i) => i.currency)).size).toBe(1);
+    });
+
     it('should create a new guest cart when adding first item', async () => {
       const result = await addItemToCart({ type: 'guest' }, testProduct.id, 1, db);
 
