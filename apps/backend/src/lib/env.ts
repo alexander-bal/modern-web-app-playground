@@ -69,6 +69,14 @@ export const env = createEnv({
     // Session Configuration
     SESSION_EXPIRY_DAYS: z.coerce.number().positive().default(7),
 
+    // Better Auth Configuration
+    BETTER_AUTH_SECRET: devDefault(
+      z.string().min(32),
+      'dev-only-better-auth-secret-please-change-me'
+    ),
+    BETTER_AUTH_URL: devDefault(z.string().url(), 'http://localhost:3000'),
+    WEB_APP_URL: devDefault(z.string().url(), 'http://localhost:5173'),
+
     // Automatic Job Generation Configuration
     JOB_GENERATION_DUE_OFFSET_DAYS: z.coerce.number().positive().default(2),
     JOB_GENERATION_DUE_HOUR: z.coerce.number().min(0).max(23).default(17),
@@ -123,6 +131,11 @@ export const env = createEnv({
     API_BEARER_TOKENS: process.env['API_BEARER_TOKENS'],
 
     SESSION_EXPIRY_DAYS: process.env['SESSION_EXPIRY_DAYS'],
+
+    // Better Auth Configuration
+    BETTER_AUTH_SECRET: process.env['BETTER_AUTH_SECRET'],
+    BETTER_AUTH_URL: process.env['BETTER_AUTH_URL'],
+    WEB_APP_URL: process.env['WEB_APP_URL'],
 
     // Job Generation Configuration
     JOB_GENERATION_DUE_OFFSET_DAYS: process.env['JOB_GENERATION_DUE_OFFSET_DAYS'],

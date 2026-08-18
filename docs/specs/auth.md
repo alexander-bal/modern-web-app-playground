@@ -23,7 +23,6 @@ This document states the required external contract; where the running system di
 ### Non-Goals
 
 - Password reset and forgotten-password recovery
-- Email verification at registration
 - Federated sign-in — OAuth, social, and enterprise identity providers
 - Multi-factor authentication
 - Administrative user management — creating, suspending, or deleting accounts through an API
@@ -35,23 +34,24 @@ This document states the required external contract; where the running system di
 
 ### FR-1: Registration
 
-- The system SHALL accept registration via `POST /api/auth/register`, carrying a first name, last name, email address, and password.
+- The system SHALL accept registration via `POST /api/auth/sign-up/email`, carrying a name, email address, and password.
 - The system SHALL enforce a minimum password length (LIM-1).
 - The system SHALL hash the password before storing it; the plaintext password SHALL NOT be persisted, logged, or returned (LIM-4, CON-1).
-- The system SHALL reject registration when the email address is already in use, with a response that does not confirm whether an account exists at that address (LIM-6; Security).
+- The system SHALL reject registration when the email address is already in use, disclosing that the address is already registered (Error Scenarios).
 - A successful registration SHALL create a session and return it as a session cookie, so the customer is signed in immediately without a second step.
+- A successful registration SHALL trigger a verification email to the registered address. Sign-in SHALL NOT be blocked on verifying it (Non-Goals still cover password reset and MFA; verification here is send-only).
 
 ### FR-2: Sign-in
 
-- The system SHALL accept sign-in via `POST /api/auth/login`, carrying an email address and password.
+- The system SHALL accept sign-in via `POST /api/auth/sign-in/email`, carrying an email address and password.
 - The system SHALL respond identically — in both message and observable timing — whether the address is unknown or the password is wrong, so neither response reveals that an account exists (LIM-6; Security).
 - A successful sign-in SHALL create a new session and return it as a session cookie.
 - The session token SHALL NOT appear in the response body (LIM-5).
-- When the sign-in request carries a `cart_token` cookie, the system SHALL merge the guest cart into the customer's cart as part of the same atomic operation that creates the session, and SHALL clear the `cart_token` cookie on the response (`cart.md` FR-7). The customer's cart SHALL read as merged immediately afterwards, without any further request from the client.
+- When the sign-in request carries a `cart_token` cookie, the system SHALL attempt to merge the guest cart into the customer's cart as part of handling the same request, and SHALL clear the `cart_token` cookie once the merge succeeds (`cart.md` FR-7). A merge failure SHALL NOT abort the sign-in — the customer still ends the request signed in, with the guest cart left unmerged.
 
 ### FR-3: Session Cookie
 
-- The session SHALL be carried in a cookie named `sid`, scoped to path `/`.
+- The session SHALL be carried in a cookie scoped to path `/`.
 - The cookie SHALL be httpOnly, so client script cannot read the session token (Security).
 - The cookie SHALL be marked `Secure` outside development, and SHALL be sent with `SameSite=Lax` (CON-2).
 - A session SHALL carry a configurable lifetime (LIM-2), and the cookie's own expiry SHALL match it.
@@ -61,17 +61,17 @@ This document states the required external contract; where the running system di
 
 - A protected route SHALL require a session cookie that resolves to a live, unexpired session.
 - On a valid session, the system SHALL resolve the customer — identifier, email, first name, last name, and administrator flag — and make them available to the route.
-- The system SHALL reject a request whose session cookie is missing, unrecognized, or expired (Error Scenarios).
+- The system SHALL reject a request whose session cookie is missing, unrecognized, or expired, with the same response regardless of which of those three is the case (Error Scenarios).
 - The customer's identity SHALL be derived only from the session; the system SHALL NOT accept a customer identifier, email, or name supplied by the caller as identity (LIM-7; Security).
 
 ### FR-5: Current Customer
 
-- The system SHALL expose `GET /api/auth/me`, returning the authenticated customer's identifier, email, first name, last name, administrator flag, and account creation date.
-- No password hash, salt, or session token SHALL appear in this or any other response (LIM-4, LIM-5).
+- The system SHALL expose a way to read the current session (`GET /api/auth/get-session`), returning the authenticated customer's identifier, email, first name, last name, administrator flag, and account creation date when signed in, and an empty result when not.
+- No password hash or session token SHALL appear in this or any other response (LIM-4, LIM-5).
 
 ### FR-6: Sign-out
 
-- The system SHALL expose `POST /api/auth/logout`, invalidating the session on the server and clearing the `sid` cookie from the browser.
+- The system SHALL expose `POST /api/auth/sign-out`, invalidating the session on the server and clearing the session cookie from the browser.
 - Sign-out SHALL be idempotent: a request carrying no session, or an already-invalid one, SHALL succeed rather than fail, since there is nothing left to invalidate.
 
 ### FR-7: Sign-in Surface
@@ -102,31 +102,31 @@ This document states the required external contract; where the running system di
 - **LIM-2 — Session lifetime.** A session lives for a configurable duration, 7 days by default, measured from its last authenticated use rather than from its creation. (FR-3)
 - **LIM-3 — Session token randomness.** A session token is 32 cryptographically random bytes; sessions cannot be reached by guessing or enumerating tokens. (FR-3; Security)
 - **LIM-4 — Passwords never leave.** A plaintext password is never persisted, never logged, and never returned; the stored hash and its salt appear in no response. (FR-1, FR-5)
-- **LIM-5 — Session token stays in the cookie.** The session token appears only in the `sid` cookie, never in a response body. (FR-2, FR-5)
+- **LIM-5 — Session token stays in the cookie.** The session token appears only in the session cookie, never in a response body. (FR-2, FR-5)
 - **LIM-6 — Indistinguishable authentication failures.** A registration against an existing address, a sign-in with an unknown address, and a sign-in with a wrong password are indistinguishable to the caller in message and in observable timing. (FR-1, FR-2, FR-7)
 - **LIM-7 — Identity comes only from the session.** No request header or body field can establish, override, or widen the caller's identity. (FR-4; Security)
 - **LIM-8 — Concurrent sessions.** A customer may hold several live sessions at once; signing in on one device does not invalidate another, and signing out invalidates only the session that made the request. (FR-2, FR-6)
 
 ## Constraints (Externally Imposed)
 
-- **CON-1 — Password hashing function.** Passwords are hashed with argon2id at its recommended parameters; the algorithm's cost, memory, and parallelism defaults, and the fact that it carries its salt inside the encoded hash, are properties of that function and not of this feature. (FR-1)
-- **CON-2 — Browser cookie semantics.** `SameSite=Lax` governs when the browser attaches the `sid` cookie to cross-site requests, and is what makes it a CSRF mitigation for state-changing requests; `Secure` and httpOnly are likewise enforced by the browser, not by this feature. (FR-3; Security)
-- **CON-3 — Guest cart merge.** The merge performed at sign-in, and the `cart_token` cookie it consumes, are owned by `cart.md`; this feature owns only the moment it happens and its atomicity with session creation. (FR-2)
-- **CON-4 — Customer record.** The customer entity, including the administrator flag and the email-confirmation field this feature leaves unused, exists independently of authentication. (FR-4, FR-5)
+- **CON-1 — Password hashing function.** Passwords are hashed with scrypt at its library-default parameters, which carries its salt inside the encoded hash; the algorithm's cost and parallelism defaults are properties of that function and not of this feature. (FR-1)
+- **CON-2 — Browser cookie semantics.** `SameSite=Lax` governs when the browser attaches the session cookie to cross-site requests, and is what makes it a CSRF mitigation for state-changing requests; `Secure` and httpOnly are likewise enforced by the browser, not by this feature. (FR-3; Security)
+- **CON-3 — Guest cart merge.** The merge performed at sign-in, and the `cart_token` cookie it consumes, are owned by `cart.md`; this feature owns only the moment it happens relative to the sign-in request. (FR-2)
+- **CON-4 — Customer record.** The customer entity, including the administrator flag, exists independently of authentication. (FR-4, FR-5)
 - **CON-5 — Session storage growth.** Sessions accumulate as customers sign in and are not removed at expiry by the act of expiring; unbounded growth is a property of the store that must be addressed operationally. (FR-3)
 
 ## Error Scenarios
 
 | Scenario | Response |
 |---|---|
-| Register with an email address already in use | HTTP 409 — "An account with this email address already exists" |
+| Register with an email address already in use | HTTP 422 — "User already exists. Use another email." |
 | Register with a malformed email address | HTTP 400 — validation error |
-| Register with a password shorter than 8 characters | HTTP 400 — "Password must be at least 8 characters" |
+| Register with a password shorter than 8 characters | HTTP 400 — "Password too short" |
 | Sign in with an unknown email address | HTTP 401 — "Invalid email or password" |
 | Sign in with a wrong password | HTTP 401 — "Invalid email or password" (identical to the unknown-address response) |
 | Request a protected route with no session cookie | HTTP 401 — "Authentication required" |
 | Request a protected route with an unrecognized session token | HTTP 401 — "Authentication required" |
-| Request a protected route with an expired session | HTTP 401 — "Session expired" |
+| Request a protected route with an expired session | HTTP 401 — "Authentication required" (identical to the unrecognized-token response) |
 | Sign out with no active session | HTTP 200 — success, idempotent |
 | Session expires while the customer is on a guarded surface | Sent to `/login` and returned to the same address after signing in |
 
@@ -135,7 +135,7 @@ This document states the required external contract; where the running system di
 - Passwords SHALL be hashed with argon2id and SHALL never be stored, logged, or returned in plaintext (FR-1, LIM-4, CON-1).
 - Session tokens SHALL be cryptographically random, so a session cannot be reached by guessing (LIM-3).
 - Registration and sign-in failures SHALL be indistinguishable in message and observable timing, so neither surface can be used to learn which email addresses hold accounts (LIM-6).
-- The `sid` cookie SHALL be httpOnly so client script cannot read the session token, and `Secure` outside development so it is not carried over plaintext connections (FR-3).
+- The session cookie SHALL be httpOnly so client script cannot read the session token, and `Secure` outside development so it is not carried over plaintext connections (FR-3).
 - `SameSite=Lax` SHALL be relied on as the CSRF mitigation for state-changing requests reached by cross-site navigation (CON-2).
 - Caller identity SHALL be derived only from the session cookie; no header or body field SHALL establish or override it, so a caller cannot act as another customer by asserting one (LIM-7).
 - Sign-in and registration are the system's brute-force surface, and each attempt costs deliberate hashing work; both SHALL be rate-limited per source, so repeated guessing is bounded and cannot be turned into a denial-of-service against the hashing cost itself.

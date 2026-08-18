@@ -55,58 +55,105 @@ export type Company = typeof companies.$inferSelect;
 export type NewCompany = typeof companies.$inferInsert;
 
 /**
- * Users table schema
- * Stores user accounts and authentication data
+ * User table schema (Better Auth core + preserved business fields)
+ * Stores user accounts; credentials live in the `account` table.
  */
-export const users = pgTable('users', {
+export const user = pgTable('user', {
   id: uuid('id').defaultRandom().primaryKey(),
-  firstName: varchar('first_name').notNull(),
-  lastName: varchar('last_name').notNull(),
+  name: text('name').notNull(),
   email: varchar('email').notNull().unique(),
-  isAdmin: boolean('is_admin').default(false),
-  password: varchar('password').notNull(),
-  salt: varchar('salt').notNull(),
+  emailVerified: boolean('email_verified').notNull().default(false),
+  image: text('image'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-  confirmedEmailAt: timestamp('confirmed_email_at', { withTimezone: true }),
-  phone: varchar('phone', { length: 30 }),
-  locale: varchar('locale', { length: 10 }).default('en-GB'),
+
+  firstName: varchar('first_name').notNull(),
+  lastName: varchar('last_name').notNull(),
+  isAdmin: boolean('is_admin').default(false),
   adminRole: varchar('admin_role'),
   adminCompanyIds: text('admin_company_ids').array(),
+  phone: varchar('phone', { length: 30 }),
+  locale: varchar('locale', { length: 10 }).default('en-GB'),
   config: jsonb('config').notNull().default('{}'),
   isOptedInToMarketing: boolean('is_opted_in_to_marketing').notNull().default(false),
   plainCustomerId: varchar('plain_customer_id'),
   plainLastSyncedAt: timestamp('plain_last_synced_at', { withTimezone: true }),
 });
 
-export type User = typeof users.$inferSelect;
-export type NewUser = typeof users.$inferInsert;
+export type User = typeof user.$inferSelect;
+export type NewUser = typeof user.$inferInsert;
 
 /**
- * Sessions table schema
+ * Session table schema (Better Auth)
  * Stores active user sessions for cookie-based authentication
  */
-export const sessions = pgTable(
-  'sessions',
+export const session = pgTable(
+  'session',
   {
     id: uuid('id').defaultRandom().primaryKey(),
     userId: uuid('user_id')
       .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
+      .references(() => user.id, { onDelete: 'cascade' }),
     token: text('token').notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
-    lastUsedAt: timestamp('last_used_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+    ipAddress: text('ip_address'),
+    userAgent: text('user_agent'),
   },
   (table) => [
-    uniqueIndex('idx_sessions_token').on(table.token),
-    index('idx_sessions_user_id').on(table.userId),
-    index('idx_sessions_expires_at').on(table.expiresAt),
+    uniqueIndex('idx_session_token').on(table.token),
+    index('idx_session_user_id').on(table.userId),
   ]
 );
 
-export type Session = typeof sessions.$inferSelect;
-export type NewSession = typeof sessions.$inferInsert;
+export type Session = typeof session.$inferSelect;
+export type NewSession = typeof session.$inferInsert;
+
+/**
+ * Account table schema (Better Auth)
+ * Stores one row per auth method linked to a user (email/password credential, OAuth, etc.)
+ */
+export const account = pgTable(
+  'account',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => user.id, { onDelete: 'cascade' }),
+    accountId: text('account_id').notNull(),
+    providerId: text('provider_id').notNull(),
+    accessToken: text('access_token'),
+    refreshToken: text('refresh_token'),
+    idToken: text('id_token'),
+    accessTokenExpiresAt: timestamp('access_token_expires_at', { withTimezone: true }),
+    refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { withTimezone: true }),
+    scope: text('scope'),
+    password: text('password'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index('idx_account_user_id').on(table.userId)]
+);
+
+export type Account = typeof account.$inferSelect;
+export type NewAccount = typeof account.$inferInsert;
+
+/**
+ * Verification table schema (Better Auth)
+ * Stores short-lived tokens for email verification, password reset, etc.
+ */
+export const verification = pgTable('verification', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  identifier: text('identifier').notNull(),
+  value: text('value').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
+});
+
+export type Verification = typeof verification.$inferSelect;
+export type NewVerification = typeof verification.$inferInsert;
 
 // =============================================================================
 // Billing Tables
@@ -261,7 +308,7 @@ export const addresses = pgTable(
     id: uuid('id').defaultRandom().primaryKey(),
     userId: uuid('user_id')
       .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
+      .references(() => user.id, { onDelete: 'cascade' }),
     fullName: text('full_name').notNull(),
     addressLine1: text('address_line_1').notNull(),
     addressLine2: text('address_line_2'),

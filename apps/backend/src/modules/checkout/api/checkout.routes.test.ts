@@ -5,7 +5,7 @@ import { createTestOrder } from '../../../../tests/factories/orders.js';
 import { createTestProduct } from '../../../../tests/factories/products.js';
 import { createAuthenticatedUser } from '../../../../tests/helpers/auth.js';
 import { buildTestApp } from '../../../app.js';
-import { db, orderItems, orders, products, sessions, users } from '../../../db/index.js';
+import { db, orderItems, orders, products, session, user } from '../../../db/index.js';
 import type { Product } from '../../products/index.js';
 import {
   CheckoutAddressNotFoundError,
@@ -24,7 +24,7 @@ describe('Checkout Routes', () => {
   beforeEach(async () => {
     fastify = await buildTestApp();
 
-    const auth = await createAuthenticatedUser('test@example.com', 'password123', db);
+    const auth = await createAuthenticatedUser('test@example.com', 'password123');
     userId = auth.userId;
     sessionToken = auth.sessionToken;
 
@@ -40,8 +40,8 @@ describe('Checkout Routes', () => {
     vi.restoreAllMocks();
     await db.delete(orderItems);
     await db.delete(orders);
-    await db.delete(sessions);
-    await db.delete(users);
+    await db.delete(session);
+    await db.delete(user);
     await db.delete(products);
     await fastify.close();
   });
@@ -69,7 +69,7 @@ describe('Checkout Routes', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/api/checkout',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: {
           shippingAddress: {
             fullName: 'John Doe',
@@ -120,7 +120,7 @@ describe('Checkout Routes', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/api/checkout',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: {
           shippingAddress: {
             fullName: 'John Doe',
@@ -160,7 +160,7 @@ describe('Checkout Routes', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/api/checkout',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: {
           shippingAddress: {
             fullName: 'John Doe',
@@ -189,7 +189,7 @@ describe('Checkout Routes', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/api/checkout',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: {
           shippingAddress: {
             fullName: 'John Doe',
@@ -235,7 +235,7 @@ describe('Checkout Routes', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/api/checkout',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: {
           shippingAddress: {
             fullName: 'John Doe',
@@ -289,7 +289,7 @@ describe('Checkout Routes', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/api/checkout',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: {
           shippingAddress: {
             fullName: 'Different Name',
@@ -329,7 +329,7 @@ describe('Checkout Routes', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/api/checkout',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: {
           shippingAddress: {
             fullName: 'John Doe',
@@ -362,7 +362,7 @@ describe('Checkout Routes', () => {
       return fastify.inject({
         method: 'POST',
         url: '/api/checkout',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload,
       });
     }

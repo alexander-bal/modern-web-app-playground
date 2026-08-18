@@ -17,14 +17,16 @@ export class ApiHelper {
   }
 
   async registerUser(user: TestUser): Promise<void> {
-    const res = await this.request.post(`${BACKEND_URL}/api/auth/register`, { data: user });
+    const res = await this.request.post(`${BACKEND_URL}/api/auth/sign-up/email`, {
+      data: { ...user, name: `${user.firstName} ${user.lastName}` },
+    });
     if (!res.ok()) {
       throw new Error(`Register failed (${res.status()}): ${await res.text()}`);
     }
   }
 
   async login(email: string, password: string): Promise<void> {
-    const res = await this.request.post(`${BACKEND_URL}/api/auth/login`, {
+    const res = await this.request.post(`${BACKEND_URL}/api/auth/sign-in/email`, {
       data: { email, password },
     });
     if (!res.ok()) {
@@ -33,7 +35,7 @@ export class ApiHelper {
   }
 
   async logout(): Promise<void> {
-    const res = await this.request.post(`${BACKEND_URL}/api/auth/logout`, { data: {} });
+    const res = await this.request.post(`${BACKEND_URL}/api/auth/sign-out`, { data: {} });
     if (!res.ok()) {
       throw new Error(`Logout failed (${res.status()}): ${await res.text()}`);
     }

@@ -1,14 +1,5 @@
 export { addressesOrpcContract } from './addresses/contract.js';
 export * from './addresses/schemas.js';
-export { authOrpcContract } from './auth/contract.js';
-export {
-  type LoginInput,
-  loginInputSchema,
-  type RegisterInput,
-  registerInputSchema,
-  type UserProfile,
-  userProfileSchema,
-} from './auth/schemas.js';
 export { cartOrpcContract } from './cart/contract.js';
 export * from './cart/schemas.js';
 export { checkoutOrpcContract } from './checkout/contract.js';

@@ -1,7 +1,3 @@
-/**
- * API Bearer Token Authentication Module
- *
- * Provides secure token-based authentication for internal APIs
- */
-
-export { authPlugin } from './auth.plugin.js';
+export { auth } from './better-auth.js';
+export { mountBetterAuthHandler } from './mount.js';
+export { requireSession } from './session-guard.js';

@@ -16,9 +16,8 @@ test.describe('checkout — edge cases', () => {
   test('redirects to login when unauthenticated', async ({ page, mswControl, checkoutPage }) => {
     await mswControl.useBeforeLoad({
       method: 'get',
-      url: '/api/auth/me',
-      status: 401,
-      body: { error: 'Unauthorized' },
+      url: '/api/auth/get-session',
+      body: null,
     });
     await checkoutPage.goto();
 

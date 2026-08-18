@@ -4,14 +4,15 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useAuth } from '../contexts/auth-context';
+import { useCart } from '../contexts/cart-context';
+import { signIn } from '../lib/auth-client';
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { invalidateCart } = useCart();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -21,11 +22,16 @@ export function LoginPage() {
     setLoading(true);
 
     try {
-      await login(email, password);
+      const { error: signInError } = await signIn.email({ email, password });
+
+      if (signInError) {
+        setError('Invalid email or password');
+        return;
+      }
+
+      invalidateCart();
       const returnTo = searchParams.get('returnTo') || '/';
       navigate(returnTo);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Invalid email or password');
     } finally {
       setLoading(false);
     }

@@ -1,9 +1,10 @@
 import { cartOrpcContract } from '@mercado/api-contracts';
 import { implement } from '@orpc/server';
+import { fromNodeHeaders } from 'better-auth/node';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { mountOrpcModule } from '../../../config/orpc-mount.js';
+import { auth } from '../../../infra/auth/index.js';
 import { createModuleLogger } from '../../../lib/logger.js';
-import { authService } from '../../auth/index.js';
 import type { CartIdentifier } from '../domain/cart.types.js';
 import {
   CartItemNotFoundError,
@@ -37,14 +38,9 @@ async function extractCartIdentifier(request: FastifyRequest): Promise<CartIdent
     return { type: 'user', userId: request.user.id };
   }
 
-  const sessionToken = request.cookies['sid'];
-  if (sessionToken) {
-    try {
-      const user = await authService.validateSession(sessionToken);
-      return { type: 'user', userId: user.id };
-    } catch {
-      // Session invalid or expired, treat as guest
-    }
+  const sessionData = await auth.api.getSession({ headers: fromNodeHeaders(request.headers) });
+  if (sessionData) {
+    return { type: 'user', userId: sessionData.user.id };
   }
 
   const cartToken = request.cookies[CART_TOKEN_COOKIE_NAME];

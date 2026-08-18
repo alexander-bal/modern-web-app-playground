@@ -67,3 +67,6 @@ Ensure your `.env` file has all required variables before running:
 - `CORE_API_KEY`
 - `API_BEARER_TOKENS`
 - `VIES_API_KEY`
+- `BETTER_AUTH_SECRET`
+- `BETTER_AUTH_URL`
+- `WEB_APP_URL`

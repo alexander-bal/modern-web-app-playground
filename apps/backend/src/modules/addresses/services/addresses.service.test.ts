@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createTestAddress } from '../../../../tests/factories/addresses.js';
 import { createTestUser } from '../../../../tests/factories/users.js';
-import { addresses, db, users } from '../../../db/index.js';
+import { addresses, db, user } from '../../../db/index.js';
 import {
   AddressLimitError,
   AddressNotFoundError,
@@ -24,7 +24,7 @@ const baseAddress = {
 
 afterEach(async () => {
   await db.delete(addresses);
-  await db.delete(users);
+  await db.delete(user);
 });
 
 describe('listAddressesService', () => {

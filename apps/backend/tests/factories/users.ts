@@ -1,5 +1,5 @@
 import type { Database } from '../../src/db/index.js';
-import { db, users } from '../../src/db/index.js';
+import { db, user } from '../../src/db/index.js';
 import type { NewUser, User } from '../../src/db/schema.js';
 
 /**
@@ -7,13 +7,15 @@ import type { NewUser, User } from '../../src/db/schema.js';
  */
 function buildTestUserData(overrides: Partial<NewUser> = {}): NewUser {
   const timestamp = Date.now();
+  const firstName = overrides.firstName ?? 'Test';
+  const lastName = overrides.lastName ?? 'User';
   const userData: NewUser = {
-    firstName: overrides.firstName ?? 'Test',
-    lastName: overrides.lastName ?? 'User',
+    name: overrides.name ?? `${firstName} ${lastName}`,
+    firstName,
+    lastName,
     email: overrides.email ?? `test.user.${timestamp}@example.com`,
+    emailVerified: overrides.emailVerified ?? false,
     isAdmin: overrides.isAdmin ?? false,
-    password: overrides.password ?? 'hashed_password',
-    salt: overrides.salt ?? 'random_salt',
     phone: overrides.phone ?? null,
     locale: overrides.locale ?? 'en-GB',
     adminRole: overrides.adminRole ?? null,
@@ -22,7 +24,6 @@ function buildTestUserData(overrides: Partial<NewUser> = {}): NewUser {
     isOptedInToMarketing: overrides.isOptedInToMarketing ?? false,
     plainCustomerId: overrides.plainCustomerId ?? null,
     plainLastSyncedAt: overrides.plainLastSyncedAt ?? null,
-    confirmedEmailAt: overrides.confirmedEmailAt ?? null,
   };
 
   // Add ID if provided (for cases where we need a specific ID)
@@ -41,7 +42,7 @@ export async function createTestUser(
   database: Database = db
 ): Promise<User> {
   const userData = buildTestUserData(overrides);
-  const results = await database.insert(users).values(userData).returning();
+  const results = await database.insert(user).values(userData).returning();
 
   if (!results[0]) {
     throw new Error('Failed to create test user');

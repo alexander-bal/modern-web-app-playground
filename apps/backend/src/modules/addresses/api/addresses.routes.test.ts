@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createTestAddress } from '../../../../tests/factories/addresses.js';
 import { createAuthenticatedUser } from '../../../../tests/helpers/auth.js';
 import { buildTestApp } from '../../../app.js';
-import { addresses, db, sessions, users } from '../../../db/index.js';
+import { addresses, db, session, user } from '../../../db/index.js';
 import { addressesService } from '../services/addresses.service.js';
 
 const ADDRESS_LIMIT = 20;
@@ -32,7 +32,7 @@ describe('Addresses Routes', () => {
 
   beforeEach(async () => {
     fastify = await buildTestApp();
-    const auth = await createAuthenticatedUser('addresses@example.com', 'password123', db);
+    const auth = await createAuthenticatedUser('addresses@example.com', 'password123');
     userId = auth.userId;
     sessionToken = auth.sessionToken;
   });
@@ -40,8 +40,8 @@ describe('Addresses Routes', () => {
   afterEach(async () => {
     vi.restoreAllMocks();
     await db.delete(addresses);
-    await db.delete(sessions);
-    await db.delete(users);
+    await db.delete(session);
+    await db.delete(user);
     await fastify.close();
   });
 
@@ -57,14 +57,14 @@ describe('Addresses Routes', () => {
     });
 
     it("returns only the authenticated user's addresses", async () => {
-      const other = await createAuthenticatedUser('other@example.com', 'password123', db);
+      const other = await createAuthenticatedUser('other@example.com', 'password123');
       await createTestAddress({ userId, fullName: 'Mine' });
       await createTestAddress({ userId: other.userId, fullName: 'Theirs' });
 
       const response = await fastify.inject({
         method: 'GET',
         url: '/api/v1/addresses',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
       });
 
       expect(response.statusCode).toBe(200);
@@ -78,7 +78,7 @@ describe('Addresses Routes', () => {
       const response = await fastify.inject({
         method: 'GET',
         url: '/api/v1/addresses',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
       });
 
       expect(response.statusCode).toBe(500);
@@ -104,7 +104,7 @@ describe('Addresses Routes', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/api/v1/addresses',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: { ...validBody, fullName: 'Persisted Person' },
       });
 
@@ -124,7 +124,7 @@ describe('Addresses Routes', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/api/v1/addresses',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: validBody,
       });
 
@@ -139,7 +139,7 @@ describe('Addresses Routes', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/api/v1/addresses',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: validBody,
       });
 
@@ -171,7 +171,7 @@ describe('Addresses Routes', () => {
       const response = await fastify.inject({
         method: 'PUT',
         url: `/api/v1/addresses/${address.id}`,
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: { city: 'New City' },
       });
 
@@ -182,13 +182,13 @@ describe('Addresses Routes', () => {
     });
 
     it('returns 404 for an address the user does not own', async () => {
-      const other = await createAuthenticatedUser('stranger@example.com', 'password123', db);
+      const other = await createAuthenticatedUser('stranger@example.com', 'password123');
       const foreign = await createTestAddress({ userId: other.userId, city: 'Their City' });
 
       const response = await fastify.inject({
         method: 'PUT',
         url: `/api/v1/addresses/${foreign.id}`,
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: { city: 'Hijacked City' },
       });
 
@@ -205,7 +205,7 @@ describe('Addresses Routes', () => {
       const response = await fastify.inject({
         method: 'PUT',
         url: `/api/v1/addresses/${address.id}`,
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: { city: 'New City' },
       });
 
@@ -235,7 +235,7 @@ describe('Addresses Routes', () => {
       const response = await fastify.inject({
         method: 'DELETE',
         url: `/api/v1/addresses/${address.id}`,
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
       });
 
       expect(response.statusCode).toBe(204);
@@ -247,7 +247,7 @@ describe('Addresses Routes', () => {
       const response = await fastify.inject({
         method: 'DELETE',
         url: `/api/v1/addresses/${UNKNOWN_ADDRESS_ID}`,
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
       });
 
       expect(response.statusCode).toBe(404);
@@ -261,7 +261,7 @@ describe('Addresses Routes', () => {
       const response = await fastify.inject({
         method: 'DELETE',
         url: `/api/v1/addresses/${address.id}`,
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
       });
 
       expect(response.statusCode).toBe(500);

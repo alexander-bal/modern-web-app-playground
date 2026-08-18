@@ -4,7 +4,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useAuth } from '../contexts/auth-context';
+import { useCart } from '../contexts/cart-context';
+import { signUpEmail } from '../lib/auth-client';
 
 export function RegisterPage() {
   const [firstName, setFirstName] = useState('');
@@ -14,7 +15,7 @@ export function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { register } = useAuth();
+  const { invalidateCart } = useCart();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -34,10 +35,21 @@ export function RegisterPage() {
     setLoading(true);
 
     try {
-      await register(firstName, lastName, email, password);
+      const { error: signUpError } = await signUpEmail({
+        email,
+        password,
+        name: `${firstName} ${lastName}`,
+        firstName,
+        lastName,
+      });
+
+      if (signUpError) {
+        setError(signUpError.message ?? 'Registration failed');
+        return;
+      }
+
+      invalidateCart();
       navigate('/');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed');
     } finally {
       setLoading(false);
     }

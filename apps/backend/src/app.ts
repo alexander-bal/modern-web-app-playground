@@ -3,12 +3,11 @@ import Fastify from 'fastify';
 import { generateOpenApiSpec } from './config/openapi.js';
 import { mountOrpcModule } from './config/orpc-mount.js';
 import { serverConfig } from './config/server.js';
-import { authPlugin } from './infra/auth/index.js';
+import { mountBetterAuthHandler, requireSession } from './infra/auth/index.js';
 import { registerInfrastructureRoutes } from './infra/index.js';
 import { env } from './lib/env.js';
 import { ValidationError } from './lib/error-transformers.js';
 import type { AddressesOrpcContext } from './modules/addresses/api/addresses.routes.js';
-import type { AuthOrpcContext } from './modules/auth/api/auth.routes.js';
 import type { CheckoutOrpcContext } from './modules/checkout/api/checkout.routes.js';
 import type { OrdersOrpcContext } from './modules/orders/api/orders.routes.js';
 
@@ -92,12 +91,9 @@ export async function buildApp() {
   // Register infrastructure routes (health, metrics, etc.) - UNPROTECTED
   await fastify.register(registerInfrastructureRoutes);
 
-  // Register auth routes - UNPROTECTED (login, register, logout are public; /me requires auth)
-  const { authOrpcRouter } = await import('./modules/auth/index.js');
-  mountOrpcModule<AuthOrpcContext>(fastify, authOrpcRouter, {
-    prefix: '/api/auth',
-    getContext: (request, reply) => ({ request, reply }),
-  });
+  // Register Better Auth - UNPROTECTED (sign-up/sign-in/sign-out are public; get-session
+  // just returns null when there's no valid session)
+  mountBetterAuthHandler(fastify, env.BETTER_AUTH_URL);
 
   // Register public API routes - UNPROTECTED
   const { productsOrpcRouter } = await import('./modules/products/index.js');
@@ -111,10 +107,9 @@ export async function buildApp() {
   await fastify.register(registerCartRoutes);
 
   // Register protected business API routes with authentication
-  // All routes registered through this plugin will require API Bearer token authentication
   await fastify.register(async (protectedInstance) => {
     // Apply authentication to all routes in this scope
-    await protectedInstance.register(authPlugin);
+    protectedInstance.addHook('preHandler', requireSession);
 
     // Register business API routes (all protected)
     const { ordersOrpcRouter } = await import('./modules/orders/index.js');
@@ -236,12 +231,9 @@ export async function buildTestApp() {
   // Register infrastructure routes - UNPROTECTED
   await fastify.register(registerInfrastructureRoutes);
 
-  // Register auth routes - UNPROTECTED (login, register, logout are public; /me requires auth)
-  const { authOrpcRouter } = await import('./modules/auth/index.js');
-  mountOrpcModule<AuthOrpcContext>(fastify, authOrpcRouter, {
-    prefix: '/api/auth',
-    getContext: (request, reply) => ({ request, reply }),
-  });
+  // Register Better Auth - UNPROTECTED (sign-up/sign-in/sign-out are public; get-session
+  // just returns null when there's no valid session)
+  mountBetterAuthHandler(fastify, env.BETTER_AUTH_URL);
 
   // Register public API routes - UNPROTECTED
   const { productsOrpcRouter } = await import('./modules/products/index.js');
@@ -263,7 +255,7 @@ export async function buildTestApp() {
   // Register protected business API routes with authentication
   await fastify.register(async (protectedInstance) => {
     // Apply authentication to all routes in this scope
-    await protectedInstance.register(authPlugin);
+    protectedInstance.addHook('preHandler', requireSession);
 
     // Register business API routes (all protected)
     const { ordersOrpcRouter } = await import('./modules/orders/index.js');

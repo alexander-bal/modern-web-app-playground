@@ -1,6 +1,5 @@
 import {
   addressesOrpcContract,
-  authOrpcContract,
   cartOrpcContract,
   checkoutOrpcContract,
   ordersOrpcContract,
@@ -53,9 +52,6 @@ const productsOrpcClient = createModuleOrpcClient(productsOrpcContract, 'product
 const cartOrpcClient = createModuleOrpcClient(cartOrpcContract, 'cart');
 const addressesOrpcClient = createModuleOrpcClient(addressesOrpcContract, 'v1/addresses');
 const checkoutOrpcClient = createModuleOrpcClient(checkoutOrpcContract, 'checkout');
-
-/** Auth is called imperatively (no hooks), so only the raw client is needed. */
-export const authClient = createModuleOrpcClient(authOrpcContract, 'auth');
 
 export const orpc = {
   orders: createTanstackQueryUtils(ordersOrpcClient, { path: ['orders'] }),

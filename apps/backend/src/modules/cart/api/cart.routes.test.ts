@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createTestProduct } from '../../../../tests/factories/products.js';
 import { createAuthenticatedUser } from '../../../../tests/helpers/auth.js';
 import { buildTestApp } from '../../../app.js';
-import { db, orderItems, orders, products, sessions, users } from '../../../db/index.js';
+import { db, orderItems, orders, products, session, user } from '../../../db/index.js';
 import type { Product } from '../../products/index.js';
 
 describe('Cart Routes', () => {
@@ -33,8 +33,8 @@ describe('Cart Routes', () => {
   afterEach(async () => {
     await db.delete(orderItems);
     await db.delete(orders);
-    await db.delete(sessions);
-    await db.delete(users);
+    await db.delete(session);
+    await db.delete(user);
     await db.delete(products);
     await fastify.close();
   });
@@ -469,13 +469,13 @@ describe('Cart Routes', () => {
     });
 
     it('should return 404 for non-existent guest cart', async () => {
-      const auth = await createAuthenticatedUser('merge-test@example.com', 'password123', db);
+      const auth = await createAuthenticatedUser('merge-test@example.com', 'password123');
 
       const response = await fastify.inject({
         method: 'POST',
         url: '/api/cart/merge',
         cookies: {
-          sid: auth.sessionToken,
+          'better-auth.session_token': auth.sessionToken,
         },
         payload: {
           cartToken: randomUUID(),

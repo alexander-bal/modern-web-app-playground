@@ -5,7 +5,7 @@ import { createTestOrder } from '../../../../tests/factories/orders.js';
 import { createTestProduct } from '../../../../tests/factories/products.js';
 import { createAuthenticatedUser } from '../../../../tests/helpers/auth.js';
 import { buildTestApp } from '../../../app.js';
-import { db, sessions, users } from '../../../db/index.js';
+import { db, session, user } from '../../../db/index.js';
 import {
   OrderNotFoundError,
   OrderValidationError,
@@ -57,14 +57,14 @@ describe('Orders Routes - Integration Tests', () => {
   beforeEach(async () => {
     fastify = await buildTestApp();
 
-    const auth = await createAuthenticatedUser('test@example.com', 'password123', db);
+    const auth = await createAuthenticatedUser('test@example.com', 'password123');
     sessionToken = auth.sessionToken;
   });
 
   afterEach(async () => {
     vi.restoreAllMocks();
-    await db.delete(sessions);
-    await db.delete(users);
+    await db.delete(session);
+    await db.delete(user);
     if (fastify) {
       await fastify.close();
     }
@@ -93,7 +93,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/api/orders',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: requestBody,
       });
 
@@ -118,7 +118,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/api/orders',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: requestBody,
       });
 
@@ -140,7 +140,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/api/orders',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: requestBody,
       });
 
@@ -200,7 +200,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'GET',
         url: `/api/orders/${created.id}`,
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
       });
 
       expect(response.statusCode).toBe(200);
@@ -217,7 +217,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'GET',
         url: `/api/orders/${nonExistentId}`,
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
       });
 
       expect(response.statusCode).toBe(404);
@@ -230,7 +230,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'GET',
         url: '/api/orders/invalid-uuid',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
       });
 
       expect(response.statusCode).toBe(400);
@@ -258,7 +258,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'GET',
         url: '/api/orders',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
       });
 
       expect(response.statusCode).toBe(200);
@@ -277,7 +277,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'GET',
         url: '/api/orders?status=draft',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
       });
 
       expect(response.statusCode).toBe(200);
@@ -294,7 +294,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'GET',
         url: '/api/orders',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
       });
 
       expect(response.statusCode).toBe(200);
@@ -325,7 +325,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'PATCH',
         url: `/api/orders/${created.id}`,
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: {
           status: 'confirmed',
           notes: 'Updated notes',
@@ -347,7 +347,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'PATCH',
         url: `/api/orders/${nonExistentId}`,
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: {
           status: 'confirmed',
         },
@@ -365,7 +365,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'PATCH',
         url: `/api/orders/${created.id}`,
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: {
           status: 'invalid_status',
         },
@@ -398,7 +398,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'DELETE',
         url: `/api/orders/${created.id}`,
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
       });
 
       expect(response.statusCode).toBe(200);
@@ -412,7 +412,7 @@ describe('Orders Routes - Integration Tests', () => {
       const getResponse = await fastify.inject({
         method: 'GET',
         url: `/api/orders/${created.id}`,
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
       });
 
       expect(getResponse.statusCode).toBe(404);
@@ -424,7 +424,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'DELETE',
         url: `/api/orders/${nonExistentId}`,
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
       });
 
       expect(response.statusCode).toBe(404);
@@ -437,7 +437,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'DELETE',
         url: '/api/orders/invalid-uuid',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
       });
 
       expect(response.statusCode).toBe(400);
@@ -458,8 +458,8 @@ describe('Orders Routes - Integration Tests', () => {
   });
 
   describe('GET /api/orders/me', () => {
-    it('should return users orders with items', async () => {
-      const auth = await createAuthenticatedUser('myorders@example.com', 'password123', db);
+    it('should return user orders with items', async () => {
+      const auth = await createAuthenticatedUser('myorders@example.com', 'password123');
       const product = await createTestProduct({}, db);
       const order = await createTestOrder(
         { userId: auth.userId, status: 'confirmed', currency: 'EUR' },
@@ -479,7 +479,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'GET',
         url: '/api/orders/me',
-        cookies: { sid: auth.sessionToken },
+        cookies: { 'better-auth.session_token': auth.sessionToken },
       });
 
       expect(response.statusCode).toBe(200);
@@ -494,12 +494,12 @@ describe('Orders Routes - Integration Tests', () => {
     });
 
     it('should return empty array when user has no orders', async () => {
-      const auth = await createAuthenticatedUser('noorders@example.com', 'password123', db);
+      const auth = await createAuthenticatedUser('noorders@example.com', 'password123');
 
       const response = await fastify.inject({
         method: 'GET',
         url: '/api/orders/me',
-        cookies: { sid: auth.sessionToken },
+        cookies: { 'better-auth.session_token': auth.sessionToken },
       });
 
       expect(response.statusCode).toBe(200);
@@ -508,9 +508,9 @@ describe('Orders Routes - Integration Tests', () => {
       expect(body.orders).toEqual([]);
     });
 
-    it('should not return other users orders', async () => {
-      const user1 = await createAuthenticatedUser('user1@example.com', 'password123', db);
-      const user2 = await createAuthenticatedUser('user2@example.com', 'password123', db);
+    it('should not return other user orders', async () => {
+      const user1 = await createAuthenticatedUser('user1@example.com', 'password123');
+      const user2 = await createAuthenticatedUser('user2@example.com', 'password123');
 
       const user1Order = await createTestOrder({ userId: user1.userId, status: 'confirmed' }, db);
       await createTestOrder({ userId: user2.userId, status: 'confirmed' }, db);
@@ -518,7 +518,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'GET',
         url: '/api/orders/me',
-        cookies: { sid: user1.sessionToken },
+        cookies: { 'better-auth.session_token': user1.sessionToken },
       });
 
       expect(response.statusCode).toBe(200);
@@ -530,7 +530,7 @@ describe('Orders Routes - Integration Tests', () => {
     });
 
     it('should exclude cart status orders', async () => {
-      const auth = await createAuthenticatedUser('carttest@example.com', 'password123', db);
+      const auth = await createAuthenticatedUser('carttest@example.com', 'password123');
       await createTestOrder({ userId: auth.userId, status: 'cart' }, db);
       const confirmedOrder = await createTestOrder(
         { userId: auth.userId, status: 'confirmed' },
@@ -540,7 +540,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'GET',
         url: '/api/orders/me',
-        cookies: { sid: auth.sessionToken },
+        cookies: { 'better-auth.session_token': auth.sessionToken },
       });
 
       expect(response.statusCode).toBe(200);
@@ -580,7 +580,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/api/orders',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: validCreateBody,
       });
 
@@ -595,7 +595,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/api/orders',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: validCreateBody,
       });
 
@@ -610,7 +610,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'POST',
         url: '/api/orders',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: validCreateBody,
       });
 
@@ -623,7 +623,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'GET',
         url: `/api/orders/${MISSING_ID}`,
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
       });
 
       expect(response.statusCode).toBe(404);
@@ -635,7 +635,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'PATCH',
         url: `/api/orders/${MISSING_ID}`,
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: { notes: 'updated' },
       });
 
@@ -650,7 +650,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'PATCH',
         url: `/api/orders/${MISSING_ID}`,
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: { orderNumber: 'ORD-TAKEN' },
       });
 
@@ -665,7 +665,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'PATCH',
         url: `/api/orders/${MISSING_ID}`,
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
         payload: { notes: 'updated' },
       });
 
@@ -678,7 +678,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'DELETE',
         url: `/api/orders/${MISSING_ID}`,
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
       });
 
       expect(response.statusCode).toBe(404);
@@ -692,7 +692,7 @@ describe('Orders Routes - Integration Tests', () => {
       const response = await fastify.inject({
         method: 'GET',
         url: '/api/orders/by-number/ORD-NOPE',
-        cookies: { sid: sessionToken },
+        cookies: { 'better-auth.session_token': sessionToken },
       });
 
       expect(response.statusCode).toBe(404);

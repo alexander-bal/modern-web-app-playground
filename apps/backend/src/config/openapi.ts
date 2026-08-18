@@ -1,6 +1,5 @@
 import {
   addressesOrpcContract,
-  authOrpcContract,
   cartOrpcContract,
   checkoutOrpcContract,
   ordersOrpcContract,
@@ -12,12 +11,14 @@ import { ZodToJsonSchemaConverter } from '@orpc/zod';
 import type { JSONSchema } from 'json-schema-typed/draft-2020-12';
 import type { OpenAPIV3_1 } from 'openapi-types';
 
-/** Each module's contract paths are relative to its Fastify mount prefix (see `app.ts`). */
+/**
+ * Each module's contract paths are relative to its Fastify mount prefix (see `app.ts`).
+ * Better Auth (`/api/auth/*`) isn't an oRPC contract and doesn't appear in this spec.
+ */
 const MODULES = [
   { contract: ordersOrpcContract, prefix: '/api/orders', tags: ['Orders'] },
   { contract: productsOrpcContract, prefix: '/api/products', tags: ['Products'] },
   { contract: cartOrpcContract, prefix: '/api/cart', tags: ['Cart'] },
-  { contract: authOrpcContract, prefix: '/api/auth', tags: ['Auth'] },
   { contract: addressesOrpcContract, prefix: '/api/v1/addresses', tags: ['Addresses'] },
   { contract: checkoutOrpcContract, prefix: '/api/checkout', tags: ['Checkout'] },
 ] as const;
@@ -26,7 +27,6 @@ const openApiTags = [
   { name: 'Orders', description: 'Order management endpoints' },
   { name: 'Products', description: 'Product catalog endpoints' },
   { name: 'Cart', description: 'Shopping cart endpoints' },
-  { name: 'Auth', description: 'Registration, login, and session endpoints' },
   { name: 'Addresses', description: 'Saved address book endpoints' },
   { name: 'Checkout', description: 'Order placement endpoint' },
 ];
@@ -35,8 +35,8 @@ const openApiSecuritySchemes: Record<string, OpenAPIV3_1.SecuritySchemeObject> =
   SessionCookie: {
     type: 'apiKey',
     in: 'cookie',
-    name: 'sid',
-    description: 'Session cookie set on login/register',
+    name: 'better-auth.session_token',
+    description: 'Session cookie set by Better Auth on sign-in/sign-up',
   },
 };
 
@@ -45,18 +45,15 @@ const NO_SECURITY: OpenAPIV3_1.SecurityRequirementObject[] = [];
 
 /**
  * `/api/orders/*`, `/api/checkout`, and `/api/v1/addresses/*` are mounted inside the
- * `protectedInstance` scope, whose `authPlugin` hook rejects any request without a valid
- * `sid` session cookie before the handler runs (see `app.ts`, `infra/auth/auth.plugin.ts`).
- * `/api/products/*` and `/api/cart/*` are mounted unprotected, except `auth.me` and
- * `cart.mergeCart`, which validate the session cookie themselves in the handler (see
- * `auth.routes.ts`, `cart.routes.ts`) rather than being gated by mount scope.
+ * `protectedInstance` scope, whose session guard rejects any request without a valid
+ * session cookie before the handler runs (see `app.ts`, `infra/auth/session-guard.ts`).
+ * `/api/products/*` and `/api/cart/*` are mounted unprotected, except `cart.mergeCart`,
+ * which validates the session cookie itself in the handler (see `cart.routes.ts`) rather
+ * than being gated by mount scope.
  */
 function requiresSessionCookie(path: string): boolean {
-  if (path === '/api/auth/me' || path === '/api/cart/merge') {
+  if (path === '/api/cart/merge') {
     return true;
-  }
-  if (path.startsWith('/api/auth/')) {
-    return false;
   }
   return (
     path.startsWith('/api/orders') ||

@@ -4,7 +4,6 @@ import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router-dom';
 import './index.css';
 import { Toaster } from '@/components/ui/sonner';
-import { AuthProvider } from './contexts/auth-context';
 import { CartProvider } from './contexts/cart-context';
 import { router } from './router';
 
@@ -31,12 +30,10 @@ async function bootstrap() {
   createRoot(rootElement).render(
     <StrictMode>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <CartProvider>
-            <RouterProvider router={router} />
-            <Toaster />
-          </CartProvider>
-        </AuthProvider>
+        <CartProvider>
+          <RouterProvider router={router} />
+          <Toaster />
+        </CartProvider>
       </QueryClientProvider>
     </StrictMode>
   );

@@ -3,6 +3,8 @@
 **Status:** accepted
 **Date:** 2026-03-05 12:49
 
+**Superseded (2026-08-18):** this hand-rolled session-cookie system (the `sessions`/`users` tables, `sid` cookie, argon2id hashing, `auth.plugin.ts`) was replaced with the Better Auth library — see `docs/adr/2026-08-18-17-30-better-auth-migration.md`. The problems this ADR solved (no end-user login, unverified identity) remain solved; only the implementation changed.
+
 ## Context
 
 The Mercado backend authenticates all API requests using a single shared Bearer token from the `API_BEARER_TOKENS` environment variable. User identity is optionally passed in three custom headers: `X-User-Id`, `X-User-Email`, and `X-User-Name`. There is no mechanism for end users to authenticate directly.

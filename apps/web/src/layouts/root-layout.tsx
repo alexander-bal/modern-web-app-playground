@@ -4,16 +4,21 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Container } from '@/components/ui/container';
 import { CountBadge } from '@/components/ui/count-badge';
 import { Input } from '@/components/ui/input';
-import { useAuth } from '../contexts/auth-context';
 import { useCart } from '../contexts/cart-context';
+import { signOut, useSession } from '../lib/auth-client';
 
 export function RootLayout() {
-  const { itemCount } = useCart();
-  const { user, logout } = useAuth();
+  const { itemCount, invalidateCart } = useCart();
+  const { data: session } = useSession();
   const navigate = useNavigate();
 
+  // `firstName`/`lastName` are additionalFields — not yet reflected in Better Auth's
+  // inferred client session type, so read them off the runtime object defensively.
+  const user = session?.user as { firstName: string; lastName: string } | undefined;
+
   const handleLogout = async () => {
-    await logout();
+    await signOut();
+    invalidateCart();
   };
 
   const handleSearchSubmit = (e: React.FormEvent<HTMLFormElement>) => {

@@ -5,4 +5,4 @@ export {
   findCartItems,
   findOrderByUserId,
 } from './repositories/cart.repository.js';
-export { addItemToCart, mergeGuestCart } from './services/cart.service.js';
+export { mergeGuestCart } from './services/cart.service.js';
