@@ -63,23 +63,23 @@
     ]
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.1",
+    "@eslint/js": "catalog:",
     "@redocly/cli": "^2.12.1",
-    "@types/node": "^24.10.1",
+    "@types/node": "catalog:",
     "@typescript-eslint/eslint-plugin": "^8.67.0",
     "@typescript-eslint/parser": "^8.67.0",
     "@vitest/coverage-v8": "^4.0.10",
     "drizzle-kit": "^0.31.7",
-    "eslint": "^9.39.1",
+    "eslint": "catalog:",
     "eslint-config-prettier": "^10.1.8",
     "knip": "^5.70.2",
     "msw": "^2.12.3",
     "pino-pretty": "^13.1.2",
     "tsx": "^4.20.6",
     "type-coverage": "^2.29.7",
-    "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "typescript-eslint": "^8.67.0",
-    "typescript7": "npm:typescript@^7.0.2",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:",
+    "typescript7": "catalog:",
     "vitest": "^4.0.8"
   },
   "dependencies": {
@@ -97,7 +97,7 @@
     "@temporalio/client": "^1.13.2",
     "@temporalio/worker": "^1.13.2",
     "@temporalio/workflow": "^1.13.2",
-    "@ts-rest/core": "^3.52.1",
+    "@ts-rest/core": "catalog:",
     "@ts-rest/fastify": "^3.52.1",
     "@ts-rest/open-api": "^3.52.1",
     "argon2": "^0.44.0",
@@ -110,7 +110,7 @@
     "postgres": "^3.4.7",
     "stripe": "^20.4.0",
     "yaml": "^2.8.2",
-    "zod": "^3.25.76",
+    "zod": "catalog:",
     "zod-validation-error": "^5.0.0"
   }
 }
