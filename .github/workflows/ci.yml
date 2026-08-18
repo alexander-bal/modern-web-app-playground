@@ -48,7 +48,7 @@ jobs:
         run: pnpm run spell
 
       - name: Dead code detection
-        run: pnpm --filter @mercado/backend knip
+        run: pnpm knip
 
   secret-scanning:
     name: Secret Scanning

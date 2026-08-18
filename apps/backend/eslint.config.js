@@ -13,7 +13,6 @@ export default tseslint.config(
       'local/**',
       '*.config.js',
       '*.config.ts',
-      'knip.ts',
       'vitest.setup.ts',
     ],
   },

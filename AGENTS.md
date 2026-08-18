@@ -118,7 +118,7 @@ Two TypeScript versions are installed side by side, so `package.json` carries tw
 | `typescript7` | `npm:typescript@^7.0.2` | `tsc` — the Go compiler used by `build` and `typecheck` |
 | `typescript` | `npm:@typescript/typescript6` | the JavaScript compiler API, plus `tsc6` and `tsserver` |
 
-TypeScript 7 is a native Go binary and ships no JavaScript compiler API until 7.1. Tools that load the compiler as a library — `typescript-eslint`, `type-coverage`, `knip`, and editor language servers — import the package named `typescript`, so that name points at Microsoft's 6.0 compatibility package while `tsc` stays on 7. `typescript-eslint` must be at 8.67+ to accept a 6.x peer.
+TypeScript 7 is a native Go binary and ships no JavaScript compiler API until 7.1. Tools that load the compiler as a library — `typescript-eslint`, `type-coverage`, and editor language servers — import the package named `typescript`, so that name points at Microsoft's 6.0 compatibility package while `tsc` stays on 7. `typescript-eslint` must be at 8.67+ to accept a 6.x peer.
 
 Collapse this to a single `typescript` dependency once 7.1 ships its API.
 
