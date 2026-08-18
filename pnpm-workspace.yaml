@@ -20,3 +20,15 @@ overrides:
 peerDependencyRules:
   allowedVersions:
     '@ts-rest/fastify>fastify': '5'
+
+minimumReleaseAge: 10080 # 7 days — delay installing versions published more recently than this
+minimumReleaseAgeStrict: true # fail install rather than silently falling back to an older version
+allowBuilds:
+  '@swc/core': true
+  argon2: true
+  esbuild: true
+  msw: true
+  protobufjs: true
+
+minimumReleaseAgeExclude:
+  - knip # TODO: remove once knip@6.32.2 clears the 7-day quarantine window (published 2026-08-11T20:34Z)

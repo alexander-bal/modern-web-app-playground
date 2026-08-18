@@ -50,7 +50,7 @@
   "engines": {
     "node": ">=24"
   },
-  "packageManager": "pnpm@10.15.0",
+  "packageManager": "pnpm@11.22.0",
   "typeCoverage": {
     "atLeast": 97,
     "strict": true,
