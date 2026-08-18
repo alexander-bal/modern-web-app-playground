@@ -1,16 +1,14 @@
-import Alert from '@mui/material/Alert';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Checkbox from '@mui/material/Checkbox';
-import Chip from '@mui/material/Chip';
-import CircularProgress from '@mui/material/CircularProgress';
-import Container from '@mui/material/Container';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import Paper from '@mui/material/Paper';
-import TextField from '@mui/material/TextField';
-import Typography from '@mui/material/Typography';
+import { X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Container } from '@/components/ui/container';
+import { FormField } from '@/components/ui/form-field';
+import { Label } from '@/components/ui/label';
+import { Spinner } from '@/components/ui/spinner';
 import { tsr } from '../lib/api-client';
 
 interface AddressFormData {
@@ -177,73 +175,67 @@ export function AddressesPage() {
 
   if (isPending) {
     return (
-      <Container maxWidth="lg">
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
-          <CircularProgress />
-        </Box>
+      <Container>
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <Spinner className="size-10" />
+        </div>
       </Container>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h4" component="h1">
-          Address Book
-        </Typography>
-        {formMode.type === 'none' && (
-          <Button variant="contained" onClick={handleOpenAdd}>
-            Add Address
-          </Button>
-        )}
-      </Box>
+    <Container className="py-8">
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-semibold tracking-tight">Address Book</h1>
+        {formMode.type === 'none' && <Button onClick={handleOpenAdd}>Add Address</Button>}
+      </div>
 
       {mutationError && (
-        <Alert severity="error" onClose={() => setMutationError(null)} sx={{ mb: 2 }}>
-          {mutationError}
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{mutationError}</AlertDescription>
+          <AlertAction>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              onClick={() => setMutationError(null)}
+              aria-label="Dismiss error"
+            >
+              <X />
+            </Button>
+          </AlertAction>
         </Alert>
       )}
 
       {addresses.length === 0 && formMode.type === 'none' && (
-        <Typography color="text.secondary">
+        <p className="text-muted-foreground">
           No saved addresses yet. Add one to speed up checkout.
-        </Typography>
+        </p>
       )}
 
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: formMode.type !== 'none' ? 3 : 0 }}>
+      <div className={`flex flex-wrap gap-4 ${formMode.type !== 'none' ? 'mb-6' : ''}`}>
         {addresses.map((addr) => (
-          <Paper
+          <div
             key={addr.id}
-            sx={{
-              p: 2,
-              minWidth: 260,
-              maxWidth: 320,
-              flex: '1 1 260px',
-              borderTop: '3px solid #4F46E5',
-            }}
             data-testid="address-card"
+            className="max-w-80 min-w-65 flex-1 rounded-xl border bg-card p-4 shadow-sm"
           >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-              <Typography variant="subtitle1" fontWeight={600}>
-                {addr.fullName}
-              </Typography>
-              {addr.isDefault && (
-                <Chip label="Default" size="small" color="primary" data-testid="default-chip" />
-              )}
-            </Box>
-            <Typography variant="body2">{addr.addressLine1}</Typography>
-            {addr.addressLine2 && <Typography variant="body2">{addr.addressLine2}</Typography>}
-            <Typography variant="body2">
+            <div className="mb-2 flex items-center gap-2">
+              <p className="font-semibold">{addr.fullName}</p>
+              {addr.isDefault && <Badge data-testid="default-chip">Default</Badge>}
+            </div>
+            <p className="text-sm">{addr.addressLine1}</p>
+            {addr.addressLine2 && <p className="text-sm">{addr.addressLine2}</p>}
+            <p className="text-sm">
               {addr.city}
               {addr.state ? `, ${addr.state}` : ''} {addr.postalCode}
-            </Typography>
-            <Typography variant="body2">{addr.countryCode}</Typography>
-            {addr.phone && <Typography variant="body2">{addr.phone}</Typography>}
-            <Box sx={{ display: 'flex', gap: 1, mt: 1.5, flexWrap: 'wrap' }}>
+            </p>
+            <p className="text-sm">{addr.countryCode}</p>
+            {addr.phone && <p className="text-sm">{addr.phone}</p>}
+            <div className="mt-3 flex flex-wrap gap-2">
               {!addr.isDefault && (
                 <Button
-                  size="small"
-                  variant="outlined"
+                  size="sm"
+                  variant="outline"
                   onClick={() => handleSetDefault(addr.id)}
                   disabled={isMutating}
                 >
@@ -251,120 +243,114 @@ export function AddressesPage() {
                 </Button>
               )}
               <Button
-                size="small"
-                variant="outlined"
+                size="sm"
+                variant="outline"
                 onClick={() => handleEdit(addr.id)}
                 disabled={isMutating}
               >
                 Edit
               </Button>
               <Button
-                size="small"
-                variant="outlined"
-                color="error"
+                size="sm"
+                variant="outline"
+                className="text-destructive"
                 onClick={() => handleDelete(addr.id)}
                 disabled={isMutating}
               >
                 Delete
               </Button>
-            </Box>
-          </Paper>
+            </div>
+          </div>
         ))}
-      </Box>
+      </div>
 
       {formMode.type !== 'none' && (
-        <Paper sx={{ p: 3, borderTop: '3px solid #4F46E5' }}>
-          <Typography variant="h6" gutterBottom>
+        <div className="rounded-xl border bg-card p-6 shadow-sm">
+          <h2 className="mb-2 text-lg font-semibold">
             {formMode.type === 'add' ? 'Add Address' : 'Edit Address'}
-          </Typography>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <TextField
+          </h2>
+          <div className="flex flex-col gap-4">
+            <FormField
+              id="address-full-name"
               label="Full Name"
               value={formData.fullName}
               onChange={(e) => updateField('fullName', e.target.value)}
-              error={!!fieldErrors.fullName}
-              helperText={fieldErrors.fullName}
+              error={fieldErrors.fullName}
               required
-              fullWidth
             />
-            <TextField
+            <FormField
+              id="address-address-line-1"
               label="Address Line 1"
               value={formData.addressLine1}
               onChange={(e) => updateField('addressLine1', e.target.value)}
-              error={!!fieldErrors.addressLine1}
-              helperText={fieldErrors.addressLine1}
+              error={fieldErrors.addressLine1}
               required
-              fullWidth
             />
-            <TextField
+            <FormField
+              id="address-address-line-2"
               label="Address Line 2"
               value={formData.addressLine2}
               onChange={(e) => updateField('addressLine2', e.target.value)}
-              fullWidth
             />
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <TextField
+            <div className="flex gap-4">
+              <FormField
+                id="address-city"
                 label="City"
                 value={formData.city}
                 onChange={(e) => updateField('city', e.target.value)}
-                error={!!fieldErrors.city}
-                helperText={fieldErrors.city}
+                error={fieldErrors.city}
                 required
-                fullWidth
               />
-              <TextField
+              <FormField
+                id="address-state"
                 label="State/Province"
                 value={formData.state}
                 onChange={(e) => updateField('state', e.target.value)}
-                fullWidth
               />
-            </Box>
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <TextField
+            </div>
+            <div className="flex gap-4">
+              <FormField
+                id="address-postal-code"
                 label="Postal Code"
                 value={formData.postalCode}
                 onChange={(e) => updateField('postalCode', e.target.value)}
-                error={!!fieldErrors.postalCode}
-                helperText={fieldErrors.postalCode}
+                error={fieldErrors.postalCode}
                 required
-                fullWidth
               />
-              <TextField
+              <FormField
+                id="address-country-code"
                 label="Country Code"
                 value={formData.countryCode}
                 onChange={(e) => updateField('countryCode', e.target.value)}
-                error={!!fieldErrors.countryCode}
-                helperText={fieldErrors.countryCode}
+                error={fieldErrors.countryCode}
                 placeholder="US"
                 required
-                fullWidth
               />
-            </Box>
-            <TextField
+            </div>
+            <FormField
+              id="address-phone"
               label="Phone"
               value={formData.phone}
               onChange={(e) => updateField('phone', e.target.value)}
-              fullWidth
             />
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={formData.isDefault}
-                  onChange={(e) => updateField('isDefault', e.target.checked)}
-                />
-              }
-              label="Set as default"
-            />
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <Button variant="contained" onClick={handleSubmit} disabled={isMutating}>
-                {isMutating ? <CircularProgress size={20} color="inherit" /> : 'Save'}
+            <Label className="w-fit">
+              <Checkbox
+                id="address-set-default"
+                checked={formData.isDefault}
+                onCheckedChange={(checked) => updateField('isDefault', checked === true)}
+              />
+              Set as default
+            </Label>
+            <div className="flex gap-4">
+              <Button onClick={handleSubmit} disabled={isMutating}>
+                {isMutating ? <Spinner /> : 'Save'}
               </Button>
-              <Button variant="outlined" onClick={handleCancel} disabled={isMutating}>
+              <Button variant="outline" onClick={handleCancel} disabled={isMutating}>
                 Cancel
               </Button>
-            </Box>
-          </Box>
-        </Paper>
+            </div>
+          </div>
+        </div>
       )}
     </Container>
   );

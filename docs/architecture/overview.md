@@ -60,7 +60,7 @@ apps/
 │       ├── helpers/            # Test helper utilities
 │       ├── setup/              # Test environment setup
 │       └── smoke/              # Smoke tests
-└── web/                        # React frontend (Vite + MUI)
+└── web/                        # React frontend (Vite + shadcn/ui on Base UI + Tailwind)
     └── src/
         ├── lib/                # Shared utilities (api-client.ts)
         ├── components/         # Reusable components (cart-sidebar, require-auth)

@@ -32,6 +32,13 @@ export default defineConfig([
     rules: unusedVarsRule,
   },
   {
+    // shadcn primitives co-locate their `cva` variant maps with the component they style.
+    files: ['src/components/ui/**/*.tsx'],
+    rules: {
+      'react-refresh/only-export-components': ['error', { allowExportNames: ['buttonVariants'] }],
+    },
+  },
+  {
     files: ['e2e/**/*.ts', 'tests-integration/**/*.ts'],
     extends: [js.configs.recommended, tseslint.configs.recommended],
     languageOptions: {

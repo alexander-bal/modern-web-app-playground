@@ -1,13 +1,9 @@
-import Add from '@mui/icons-material/Add';
-import Remove from '@mui/icons-material/Remove';
-import Alert from '@mui/material/Alert';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import CircularProgress from '@mui/material/CircularProgress';
-import IconButton from '@mui/material/IconButton';
-import Typography from '@mui/material/Typography';
+import { Minus, Plus, X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { tsr } from '../lib/api-client';
 
 interface Props {
@@ -98,25 +94,18 @@ export function ProductCardCartControls({ productId, productName }: Props) {
 
   if (cartLoading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 1 }}>
-        <CircularProgress size={20} />
-      </Box>
+      <div className="flex justify-center py-2">
+        <Spinner className="size-5" />
+      </div>
     );
   }
 
   if (cartItem) {
     return (
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 1,
-          mt: 1.5,
-        }}
-      >
-        <IconButton
-          size="small"
+      <div className="mt-3 flex items-center justify-center gap-2">
+        <Button
+          size="icon-sm"
+          variant="secondary"
           onClick={() => {
             if (cartItem.quantity === 1) {
               removeItemMutation.mutate({ params: { itemId: cartItem.id } });
@@ -133,25 +122,17 @@ export function ProductCardCartControls({ productId, productName }: Props) {
               ? `Remove one ${productName} from cart`
               : `Decrease quantity of ${productName}`
           }
-          sx={{
-            bgcolor: '#F5F5F4',
-            width: 32,
-            height: 32,
-            '&:hover': { bgcolor: '#E7E5E4' },
-          }}
         >
-          <Remove fontSize="small" />
-        </IconButton>
+          <Minus />
+        </Button>
 
-        <Typography
-          aria-live="polite"
-          sx={{ minWidth: 28, textAlign: 'center', fontWeight: 'bold' }}
-        >
+        <span aria-live="polite" className="min-w-7 text-center font-bold">
           {cartItem.quantity}
-        </Typography>
+        </span>
 
-        <IconButton
-          size="small"
+        <Button
+          size="icon-sm"
+          variant="secondary"
           onClick={() =>
             updateItemMutation.mutate({
               params: { itemId: cartItem.id },
@@ -160,75 +141,61 @@ export function ProductCardCartControls({ productId, productName }: Props) {
           }
           disabled={isMutating}
           aria-label={`Increase quantity of ${productName}`}
-          sx={{
-            bgcolor: '#F5F5F4',
-            width: 32,
-            height: 32,
-            '&:hover': { bgcolor: '#E7E5E4' },
-          }}
         >
-          <Add fontSize="small" />
-        </IconButton>
-      </Box>
+          <Plus />
+        </Button>
+      </div>
     );
   }
 
   return (
-    <Box sx={{ mt: 1.5 }}>
+    <div className="mt-3">
       {addError && (
-        <Alert
-          severity="error"
-          onClose={() => setAddError(null)}
-          sx={{ mb: 1, py: 0, fontSize: '0.75rem' }}
-        >
-          {addError}
+        <Alert variant="destructive" className="mb-2 text-xs">
+          <AlertDescription>{addError}</AlertDescription>
+          <AlertAction>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              onClick={() => setAddError(null)}
+              aria-label="Dismiss error"
+            >
+              <X />
+            </Button>
+          </AlertAction>
         </Alert>
       )}
 
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
-        <IconButton
-          size="small"
+      <div className="mb-2 flex items-center justify-center gap-2">
+        <Button
+          size="icon-xs"
+          variant="secondary"
           onClick={() => setPendingQty((q) => Math.max(1, q - 1))}
           disabled={pendingQty <= 1 || addItemMutation.isPending}
-          sx={{ bgcolor: '#F5F5F4', width: 28, height: 28, '&:hover': { bgcolor: '#E7E5E4' } }}
+          aria-label={`Decrease quantity of ${productName}`}
         >
-          <Remove sx={{ fontSize: 14 }} />
-        </IconButton>
-        <Typography
-          sx={{ minWidth: 24, textAlign: 'center', fontWeight: 'bold', fontSize: '0.9rem' }}
-        >
-          {pendingQty}
-        </Typography>
-        <IconButton
-          size="small"
+          <Minus />
+        </Button>
+        <span className="min-w-6 text-center text-sm font-bold">{pendingQty}</span>
+        <Button
+          size="icon-xs"
+          variant="secondary"
           onClick={() => setPendingQty((q) => q + 1)}
           disabled={addItemMutation.isPending}
-          sx={{ bgcolor: '#F5F5F4', width: 28, height: 28, '&:hover': { bgcolor: '#E7E5E4' } }}
+          aria-label={`Increase quantity of ${productName}`}
         >
-          <Add sx={{ fontSize: 14 }} />
-        </IconButton>
-      </Box>
+          <Plus />
+        </Button>
+      </div>
 
       <Button
-        fullWidth
-        variant="contained"
+        className="w-full"
         disabled={addItemMutation.isPending}
         onClick={() => addItemMutation.mutate({ body: { productId, quantity: pendingQty } })}
         aria-label={`Add ${productName} to cart`}
-        sx={{
-          background: 'linear-gradient(135deg, #4F46E5, #4338CA)',
-          color: '#ffffff',
-          fontSize: '0.85rem',
-          py: 0.75,
-          '&:hover': {
-            background: 'linear-gradient(135deg, #4338CA, #3730A3)',
-            boxShadow: '0 4px 14px rgba(79, 70, 229, 0.35)',
-          },
-          '&.Mui-disabled': { opacity: 0.5 },
-        }}
       >
         {addItemMutation.isPending ? 'Adding…' : 'Add to Cart'}
       </Button>
-    </Box>
+    </div>
   );
 }

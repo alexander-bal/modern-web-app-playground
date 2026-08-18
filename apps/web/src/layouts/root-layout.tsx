@@ -1,15 +1,9 @@
-import AccountCircle from '@mui/icons-material/AccountCircle';
-import Search from '@mui/icons-material/Search';
-import ShoppingCart from '@mui/icons-material/ShoppingCart';
-import Badge from '@mui/material/Badge';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Container from '@mui/material/Container';
-import IconButton from '@mui/material/IconButton';
-import InputAdornment from '@mui/material/InputAdornment';
-import TextField from '@mui/material/TextField';
-import Typography from '@mui/material/Typography';
+import { CircleUser, Search, ShoppingCart } from 'lucide-react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Container } from '@/components/ui/container';
+import { CountBadge } from '@/components/ui/count-badge';
+import { Input } from '@/components/ui/input';
 import { useAuth } from '../contexts/auth-context';
 import { useCart } from '../contexts/cart-context';
 
@@ -32,126 +26,78 @@ export function RootLayout() {
   };
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
-      {/* Sticky frosted-glass header */}
-      <Box
-        component="header"
-        sx={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 1100,
-          backgroundColor: 'rgba(250, 250, 249, 0.85)',
-          backdropFilter: 'blur(20px)',
-          borderBottom: '1px solid',
-          borderColor: 'rgba(231, 229, 228, 0.6)',
-        }}
-      >
-        <Container maxWidth="lg">
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              height: 72,
-              gap: 3,
-            }}
-          >
-            {/* Logo */}
-            <Typography
-              variant="h5"
-              component={Link}
+    <div className="min-h-screen bg-background">
+      <header className="sticky top-0 z-50 border-b bg-background/85 backdrop-blur-xl">
+        <Container>
+          <div className="flex h-18 items-center gap-6">
+            <Link
               to="/"
-              sx={{
-                textDecoration: 'none',
-                fontWeight: 800,
-                letterSpacing: '-0.04em',
-                background: 'linear-gradient(135deg, #4F46E5, #7C3AED)',
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                flexShrink: 0,
-                transition: 'opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                '&:hover': {
-                  opacity: 0.8,
-                },
-              }}
+              className="shrink-0 text-xl font-extrabold tracking-tight transition-opacity hover:opacity-80"
             >
               Mercado
-            </Typography>
+            </Link>
 
-            {/* Search */}
-            <Box component="form" onSubmit={handleSearchSubmit} sx={{ flex: 1, maxWidth: 480 }}>
-              <TextField
-                name="q"
-                placeholder="Search products..."
-                size="small"
-                fullWidth
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <Search sx={{ color: 'text.secondary', fontSize: 18 }} />
-                    </InputAdornment>
-                  ),
-                }}
-                sx={{
-                  '& .MuiOutlinedInput-root': {
-                    borderRadius: '50px',
-                  },
-                }}
-              />
-            </Box>
+            <form onSubmit={handleSearchSubmit} className="max-w-120 flex-1">
+              <div className="relative">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  name="q"
+                  placeholder="Search products..."
+                  aria-label="Search products"
+                  className="rounded-full pl-8"
+                />
+              </div>
+            </form>
 
-            {/* Actions */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 'auto' }}>
+            <div className="ml-auto flex items-center gap-2">
               {user ? (
                 <>
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 1,
-                      px: 1.5,
-                      py: 0.5,
-                      borderRadius: 2,
-                      bgcolor: '#F5F5F4',
-                      border: '1px solid',
-                      borderColor: '#E7E5E4',
-                    }}
-                  >
-                    <AccountCircle sx={{ color: 'primary.main', fontSize: 20 }} />
-                    <Typography variant="body2" fontWeight={500} color="text.primary">
+                  <div className="flex items-center gap-2 rounded-lg border bg-muted px-3 py-1">
+                    <CircleUser className="size-5 text-primary" />
+                    <span className="text-sm font-medium">
                       {user.firstName} {user.lastName}
-                    </Typography>
-                  </Box>
-                  <Button variant="text" component={Link} to="/account/addresses" size="small">
+                    </span>
+                  </div>
+                  <Link
+                    to="/account/addresses"
+                    className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+                  >
                     Address Book
-                  </Button>
-                  <Button variant="text" component={Link} to="/orders" size="small">
+                  </Link>
+                  <Link to="/orders" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
                     My Orders
-                  </Button>
-                  <Button variant="outlined" onClick={handleLogout} size="small">
+                  </Link>
+                  <Button variant="outline" size="sm" onClick={handleLogout}>
                     Logout
                   </Button>
                 </>
               ) : (
-                <Button variant="contained" component={Link} to="/login" size="small">
+                <Link to="/login" className={buttonVariants({ size: 'sm' })}>
                   Sign in
-                </Button>
+                </Link>
               )}
 
-              <IconButton component={Link} to="/cart" color="primary" size="medium">
-                <Badge badgeContent={itemCount} color="error">
+              <Link
+                to="/cart"
+                aria-label={`Cart, ${itemCount} ${itemCount === 1 ? 'item' : 'items'}`}
+                className={buttonVariants({
+                  variant: 'ghost',
+                  size: 'icon',
+                  className: 'text-primary',
+                })}
+              >
+                <CountBadge count={itemCount}>
                   <ShoppingCart />
-                </Badge>
-              </IconButton>
-            </Box>
-          </Box>
+                </CountBadge>
+              </Link>
+            </div>
+          </div>
         </Container>
-      </Box>
+      </header>
 
-      {/* Page content */}
-      <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Container className="py-8">
         <Outlet />
       </Container>
-    </Box>
+    </div>
   );
 }

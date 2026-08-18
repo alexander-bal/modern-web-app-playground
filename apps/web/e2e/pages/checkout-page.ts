@@ -33,12 +33,14 @@ export class CheckoutPage {
     this.cityInput = page.getByLabel('City').first();
     this.postalCodeInput = page.getByLabel('Postal Code').first();
     this.countryCodeInput = page.getByLabel('Country Code').first();
-    this.billingSameAsShippingCheckbox = page.getByLabel('Same as shipping address');
+    this.billingSameAsShippingCheckbox = page.getByRole('checkbox', {
+      name: 'Same as shipping address',
+    });
     this.placeOrderButton = page.getByRole('button', { name: 'Place Order' });
     this.errorAlert = page.getByRole('alert');
     this.orderSummaryHeading = page.getByRole('heading', { name: 'Order Summary' });
     this.savedAddressRadios = page.getByRole('radio');
-    this.enterNewAddressRadio = page.getByLabel('Enter a new address').first();
+    this.enterNewAddressRadio = page.getByRole('radio', { name: 'Enter a new address' }).first();
     this.saveAddressCheckbox = page.getByTestId('save-shipping-checkbox');
   }
 

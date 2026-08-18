@@ -1,11 +1,8 @@
-import ShoppingCart from '@mui/icons-material/ShoppingCart';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import CircularProgress from '@mui/material/CircularProgress';
-import Divider from '@mui/material/Divider';
-import Paper from '@mui/material/Paper';
-import Typography from '@mui/material/Typography';
+import { ShoppingCart } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { buttonVariants } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { Spinner } from '@/components/ui/spinner';
 import { tsr } from '../lib/api-client';
 
 const formatPrice = (price: string, currency: string) => {
@@ -24,77 +21,49 @@ export function CartSidebar() {
   const cart = data?.status === 200 ? data.body : null;
 
   return (
-    <Paper
-      sx={{
-        p: 2,
-        position: 'sticky',
-        top: 88,
-        borderTop: '3px solid',
-        borderImage: 'linear-gradient(135deg, #4F46E5, #7C3AED) 1',
-      }}
-    >
-      <Typography variant="h6" gutterBottom>
-        Your Cart
-      </Typography>
+    <div className="sticky top-[88px] rounded-xl border bg-card p-4 shadow-sm">
+      <h2 className="mb-2 text-lg font-semibold">Your Cart</h2>
 
       {isPending ? (
-        <Box display="flex" justifyContent="center" py={3}>
-          <CircularProgress size={24} />
-        </Box>
+        <div className="flex justify-center py-6">
+          <Spinner className="size-6" />
+        </div>
       ) : !cart || cart.items.length === 0 ? (
-        <Box display="flex" flexDirection="column" alignItems="center" py={3} gap={1}>
-          <ShoppingCart sx={{ fontSize: 40, color: 'text.disabled' }} />
-          <Typography variant="body2" color="text.secondary">
-            Your cart is empty
-          </Typography>
-        </Box>
+        <div className="flex flex-col items-center gap-2 py-6">
+          <ShoppingCart className="size-10 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Your cart is empty</p>
+        </div>
       ) : (
         <>
-          <Box sx={{ maxHeight: 360, overflowY: 'auto', mb: 1 }}>
+          <div className="mb-2 max-h-90 overflow-y-auto">
             {cart.items.map((item) => (
-              <Box key={item.id} sx={{ display: 'flex', justifyContent: 'space-between', py: 1 }}>
-                <Box sx={{ flex: 1, minWidth: 0, pr: 1 }}>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      overflow: 'hidden',
-                      display: '-webkit-box',
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: 'vertical',
-                    }}
-                  >
-                    {item.productName}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Qty: {item.quantity}
-                  </Typography>
-                </Box>
-                <Typography variant="body2" sx={{ flexShrink: 0 }}>
-                  {formatPrice(item.lineTotal, item.currency)}
-                </Typography>
-              </Box>
+              <div key={item.id} className="flex justify-between py-2">
+                <div className="min-w-0 flex-1 pr-2">
+                  <p className="line-clamp-2 text-sm">{item.productName}</p>
+                  <span className="text-xs text-muted-foreground">Qty: {item.quantity}</span>
+                </div>
+                <p className="shrink-0 text-sm">{formatPrice(item.lineTotal, item.currency)}</p>
+              </div>
             ))}
-          </Box>
+          </div>
 
-          <Divider sx={{ my: 1 }} />
+          <Separator className="my-2" />
 
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-            <Typography variant="body2" fontWeight="bold">
-              Subtotal
-            </Typography>
-            <Typography variant="body2" fontWeight="bold">
+          <div className="mb-4 flex justify-between">
+            <p className="text-sm font-bold">Subtotal</p>
+            <p className="text-sm font-bold">
               {cart.currency ? formatPrice(cart.subtotal, cart.currency) : cart.subtotal}
-            </Typography>
-          </Box>
+            </p>
+          </div>
 
-          <Button variant="contained" fullWidth component={Link} to="/checkout" sx={{ mb: 1 }}>
+          <Link to="/checkout" className={buttonVariants({ className: 'mb-2 w-full' })}>
             Checkout
-          </Button>
-          <Button variant="outlined" fullWidth component={Link} to="/cart">
+          </Link>
+          <Link to="/cart" className={buttonVariants({ variant: 'outline', className: 'w-full' })}>
             View Cart
-          </Button>
+          </Link>
         </>
       )}
-    </Paper>
+    </div>
   );
 }

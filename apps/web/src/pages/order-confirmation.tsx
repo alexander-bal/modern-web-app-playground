@@ -1,16 +1,11 @@
-import CheckCircle from '@mui/icons-material/CheckCircle';
-import Alert from '@mui/material/Alert';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
-import Chip from '@mui/material/Chip';
-import CircularProgress from '@mui/material/CircularProgress';
-import Container from '@mui/material/Container';
-import Divider from '@mui/material/Divider';
-import Paper from '@mui/material/Paper';
-import Typography from '@mui/material/Typography';
+import { CircleCheck } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { buttonVariants } from '@/components/ui/button';
+import { Container } from '@/components/ui/container';
+import { Separator } from '@/components/ui/separator';
+import { Spinner } from '@/components/ui/spinner';
 import noPhoto from '../assets/no-photo.svg';
 import { tsr } from '../lib/api-client';
 import { parseAddress } from '../lib/parse-address';
@@ -61,218 +56,152 @@ export function OrderConfirmationPage() {
 
   if (isPending) {
     return (
-      <Container maxWidth="lg">
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
-          <CircularProgress />
-        </Box>
+      <Container>
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <Spinner className="size-10" />
+        </div>
       </Container>
     );
   }
 
   if (error || !order) {
     return (
-      <Container maxWidth="lg">
-        <Box sx={{ mt: 4 }}>
-          <Alert severity="error">{error || 'Order not found'}</Alert>
-          <Button component={Link} to="/" variant="contained" sx={{ mt: 2 }}>
+      <Container>
+        <div className="mt-8">
+          <Alert variant="destructive">
+            <AlertDescription>{error || 'Order not found'}</AlertDescription>
+          </Alert>
+          <Link to="/" className={buttonVariants({ className: 'mt-4' })}>
             Continue Shopping
-          </Button>
-        </Box>
+          </Link>
+        </div>
       </Container>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Box sx={{ textAlign: 'center', mb: 4 }}>
-        <Box
-          sx={{
-            width: 96,
-            height: 96,
-            borderRadius: '50%',
-            background: 'linear-gradient(135deg, #ECFDF5, #D1FAE5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            mx: 'auto',
-            mb: 2,
-          }}
-        >
-          <CheckCircle sx={{ fontSize: 80, color: 'success.main' }} />
-        </Box>
-        <Typography
-          variant="h4"
-          component="h1"
-          gutterBottom
-          sx={{
-            fontWeight: 700,
-            background: 'linear-gradient(135deg, #4F46E5, #7C3AED)',
-            backgroundClip: 'text',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-          }}
-        >
-          Order Confirmed!
-        </Typography>
-        <Typography variant="body1" color="text.secondary" gutterBottom>
+    <Container className="py-8">
+      <div className="mb-8 text-center">
+        <div className="mx-auto mb-4 flex size-24 items-center justify-center rounded-full bg-muted">
+          <CircleCheck className="size-20 text-foreground" />
+        </div>
+        <h1 className="mb-2 text-2xl font-bold tracking-tight">Order Confirmed!</h1>
+        <p className="text-muted-foreground">
           Thank you for your order. We've received your order and will process it shortly.
-        </Typography>
-      </Box>
+        </p>
+      </div>
 
-      <Paper
-        sx={{
-          p: 3,
-          mb: 3,
-          borderTop: '3px solid',
-          borderImage: 'linear-gradient(135deg, #4F46E5, #7C3AED) 1',
-        }}
-      >
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Box>
-            <Typography variant="h6">Order {order.orderNumber}</Typography>
-            <Typography variant="body2" color="text.secondary">
-              Placed on {formatDate(order.orderDate)}
-            </Typography>
-          </Box>
-          <Chip label={order.status} color="success" />
-        </Box>
+      <div className="mb-6 rounded-xl border bg-card p-6 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold">Order {order.orderNumber}</h2>
+            <p className="text-sm text-muted-foreground">Placed on {formatDate(order.orderDate)}</p>
+          </div>
+          <Badge>{order.status}</Badge>
+        </div>
 
-        <Divider sx={{ my: 2 }} />
+        <Separator className="my-4" />
 
-        <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3, mb: 3 }}>
+        <div className="mb-6 flex flex-col gap-6 md:flex-row">
           {shippingAddress && (
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+            <div className="flex-1">
+              <h3 className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                 Shipping Address
-              </Typography>
-              <Typography variant="body2">{shippingAddress.fullName}</Typography>
-              <Typography variant="body2">{shippingAddress.addressLine1}</Typography>
+              </h3>
+              <p className="text-sm">{shippingAddress.fullName}</p>
+              <p className="text-sm">{shippingAddress.addressLine1}</p>
               {shippingAddress.addressLine2 && (
-                <Typography variant="body2">{shippingAddress.addressLine2}</Typography>
+                <p className="text-sm">{shippingAddress.addressLine2}</p>
               )}
-              <Typography variant="body2">
+              <p className="text-sm">
                 {shippingAddress.city}
                 {shippingAddress.state && `, ${shippingAddress.state}`} {shippingAddress.postalCode}
-              </Typography>
-              <Typography variant="body2">{shippingAddress.countryCode}</Typography>
-              {shippingAddress.phone && (
-                <Typography variant="body2">{shippingAddress.phone}</Typography>
-              )}
-            </Box>
+              </p>
+              <p className="text-sm">{shippingAddress.countryCode}</p>
+              {shippingAddress.phone && <p className="text-sm">{shippingAddress.phone}</p>}
+            </div>
           )}
 
           {billingAddress && (
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+            <div className="flex-1">
+              <h3 className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                 Billing Address
-              </Typography>
-              <Typography variant="body2">{billingAddress.fullName}</Typography>
-              <Typography variant="body2">{billingAddress.addressLine1}</Typography>
+              </h3>
+              <p className="text-sm">{billingAddress.fullName}</p>
+              <p className="text-sm">{billingAddress.addressLine1}</p>
               {billingAddress.addressLine2 && (
-                <Typography variant="body2">{billingAddress.addressLine2}</Typography>
+                <p className="text-sm">{billingAddress.addressLine2}</p>
               )}
-              <Typography variant="body2">
+              <p className="text-sm">
                 {billingAddress.city}
                 {billingAddress.state && `, ${billingAddress.state}`} {billingAddress.postalCode}
-              </Typography>
-              <Typography variant="body2">{billingAddress.countryCode}</Typography>
-              {billingAddress.phone && (
-                <Typography variant="body2">{billingAddress.phone}</Typography>
-              )}
-            </Box>
+              </p>
+              <p className="text-sm">{billingAddress.countryCode}</p>
+              {billingAddress.phone && <p className="text-sm">{billingAddress.phone}</p>}
+            </div>
           )}
-        </Box>
+        </div>
 
-        <Divider sx={{ my: 2 }} />
+        <Separator className="my-4" />
 
-        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+        <h3 className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
           Order Items
-        </Typography>
+        </h3>
 
         {order.items.map((item) => (
-          <Card key={item.id} variant="outlined" sx={{ mb: 1 }}>
-            <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-              <Box sx={{ display: 'flex', gap: 2 }}>
-                <Box
-                  component="img"
-                  src={item.productImageUrl ?? noPhoto}
-                  alt={item.productName}
-                  sx={{
-                    width: 60,
-                    height: 60,
-                    objectFit: item.productImageUrl ? 'cover' : 'none',
-                    bgcolor: '#F5F5F4',
-                    borderRadius: 1,
-                    flexShrink: 0,
-                  }}
-                />
-                <Box sx={{ flex: 1 }}>
-                  <Typography variant="body1">{item.productName}</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    SKU: {item.productSku}
-                  </Typography>
-                  <Typography variant="body2">
-                    Quantity: {item.quantity} × {formatPrice(item.unitPrice, item.currency)}
-                  </Typography>
-                </Box>
-                <Typography variant="body1" sx={{ fontWeight: 'bold', alignSelf: 'center' }}>
-                  {formatPrice(item.lineTotal, item.currency)}
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
+          <div key={item.id} className="mb-2 rounded-lg border p-4">
+            <div className="flex gap-4">
+              <img
+                src={item.productImageUrl ?? noPhoto}
+                alt={item.productName}
+                className={`size-15 shrink-0 rounded bg-muted ${
+                  item.productImageUrl ? 'object-cover' : 'object-none'
+                }`}
+              />
+              <div className="min-w-0 flex-1">
+                <p>{item.productName}</p>
+                <p className="text-sm text-muted-foreground">SKU: {item.productSku}</p>
+                <p className="text-sm">
+                  Quantity: {item.quantity} × {formatPrice(item.unitPrice, item.currency)}
+                </p>
+              </div>
+              <p className="self-center font-bold">{formatPrice(item.lineTotal, item.currency)}</p>
+            </div>
+          </div>
         ))}
 
-        <Divider sx={{ my: 2 }} />
+        <Separator className="my-4" />
 
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="body1">Subtotal:</Typography>
-          <Typography variant="body1">{formatPrice(order.subtotal, order.currency)}</Typography>
-        </Box>
+        <div className="mb-2 flex justify-between">
+          <p>Subtotal:</p>
+          <p>{formatPrice(order.subtotal, order.currency)}</p>
+        </div>
 
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="body2" color="text.secondary">
-            Tax:
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
+        <div className="mb-2 flex justify-between">
+          <p className="text-sm text-muted-foreground">Tax:</p>
+          <p className="text-sm text-muted-foreground">
             {formatPrice(order.taxAmount, order.currency)}
-          </Typography>
-        </Box>
+          </p>
+        </div>
 
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="body2" color="text.secondary">
-            Shipping:
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
+        <div className="mb-2 flex justify-between">
+          <p className="text-sm text-muted-foreground">Shipping:</p>
+          <p className="text-sm text-muted-foreground">
             {formatPrice(order.shippingAmount, order.currency)}
-          </Typography>
-        </Box>
+          </p>
+        </div>
 
-        <Divider sx={{ my: 2 }} />
+        <Separator className="my-4" />
 
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-          <Typography variant="h6">Total:</Typography>
-          <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-            {formatPrice(order.totalAmount, order.currency)}
-          </Typography>
-        </Box>
+        <div className="mb-6 flex justify-between">
+          <p className="text-lg font-semibold">Total:</p>
+          <p className="text-lg font-bold">{formatPrice(order.totalAmount, order.currency)}</p>
+        </div>
 
-        <Button
-          component={Link}
-          to="/"
-          variant="contained"
-          fullWidth
-          size="large"
-          sx={{
-            background: 'linear-gradient(135deg, #4F46E5, #4338CA)',
-            '&:hover': {
-              background: 'linear-gradient(135deg, #4338CA, #3730A3)',
-            },
-          }}
-        >
+        <Link to="/" className={buttonVariants({ size: 'lg', className: 'w-full' })}>
           Continue Shopping
-        </Button>
-      </Paper>
+        </Link>
+      </div>
     </Container>
   );
 }

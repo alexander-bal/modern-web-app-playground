@@ -44,6 +44,8 @@ test.describe('Product Search', () => {
 
   test('pagination works correctly', async ({ searchResultsPage, page }) => {
     await searchResultsPage.goto({ q: 'mug', sort: 'relevance' });
+    // Results arrive via a client-side fetch; counting before they land skips the test silently.
+    await expect(searchResultsPage.productCards.first()).toBeVisible();
 
     const paginationButtons = searchResultsPage.pagination.getByRole('button');
     const hasMultiplePages = (await paginationButtons.count()) > 3;

@@ -57,7 +57,9 @@ test('E2E-3 — save address at checkout', async ({
 
   // No saved addresses — should show inline form directly
   await expect(checkoutPage.heading).toBeVisible();
-  await expect(authenticatedPage.getByLabel('Enter a new address')).not.toBeVisible();
+  await expect(
+    authenticatedPage.getByRole('radio', { name: 'Enter a new address' })
+  ).not.toBeVisible();
 
   // Fill inline form
   await checkoutPage.fillShippingAddress(newAddress);

@@ -1,19 +1,13 @@
-import Add from '@mui/icons-material/Add';
-import ArrowBack from '@mui/icons-material/ArrowBack';
-import Remove from '@mui/icons-material/Remove';
-import ShoppingCart from '@mui/icons-material/ShoppingCart';
-import Alert from '@mui/material/Alert';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Chip from '@mui/material/Chip';
-import CircularProgress from '@mui/material/CircularProgress';
-import Container from '@mui/material/Container';
-import IconButton from '@mui/material/IconButton';
-import Snackbar from '@mui/material/Snackbar';
-import Typography from '@mui/material/Typography';
+import { ArrowLeft, Minus, Plus, ShoppingCart } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { toast } from 'sonner';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Container } from '@/components/ui/container';
+import { Spinner } from '@/components/ui/spinner';
 import noPhoto from '../assets/no-photo.svg';
 import { CartSidebar } from '../components/cart-sidebar';
 import { tsr } from '../lib/api-client';
@@ -23,7 +17,6 @@ export function ProductDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [quantity, setQuantity] = useState(1);
-  const [showSuccess, setShowSuccess] = useState(false);
 
   const {
     data,
@@ -51,7 +44,7 @@ export function ProductDetailPage() {
   const addToCartMutation = tsr.cart.addItem.useMutation({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cart'] });
-      setShowSuccess(true);
+      toast.success('Added to cart!');
       setQuantity(1);
     },
   });
@@ -77,102 +70,87 @@ export function ProductDetailPage() {
 
   if (isPending) {
     return (
-      <Container maxWidth="lg">
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
-          <CircularProgress />
-        </Box>
+      <Container>
+        <div className="flex min-h-screen items-center justify-center">
+          <Spinner className="size-10" />
+        </div>
       </Container>
     );
   }
 
   if (error || !product) {
     return (
-      <Container maxWidth="lg">
-        <Box sx={{ mt: 4 }}>
-          <Button startIcon={<ArrowBack />} onClick={() => navigate(-1)} sx={{ mb: 2 }}>
+      <Container>
+        <div className="mt-8">
+          <Button variant="ghost" onClick={() => navigate(-1)} className="mb-4">
+            <ArrowLeft />
             Back
           </Button>
-          <Alert severity="error">{error || 'Product not found'}</Alert>
+          <Alert variant="destructive">
+            <AlertDescription>{error || 'Product not found'}</AlertDescription>
+          </Alert>
           {addToCartMutation.error && (
-            <Alert severity="error" sx={{ mt: 2 }}>
-              {addToCartMutation.error instanceof Error
-                ? addToCartMutation.error.message
-                : 'Failed to add to cart'}
+            <Alert variant="destructive" className="mt-4">
+              <AlertDescription>
+                {addToCartMutation.error instanceof Error
+                  ? addToCartMutation.error.message
+                  : 'Failed to add to cart'}
+              </AlertDescription>
             </Alert>
           )}
-        </Box>
+        </div>
       </Container>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Box sx={{ display: 'flex', gap: 3, alignItems: 'flex-start' }}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Button startIcon={<ArrowBack />} onClick={() => navigate(-1)} sx={{ mb: 3 }}>
+    <Container className="py-8">
+      <div className="flex items-start gap-6">
+        <div className="min-w-0 flex-1">
+          <Button variant="ghost" onClick={() => navigate(-1)} className="mb-6">
+            <ArrowLeft />
             Back
           </Button>
 
           {addToCartMutation.error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {addToCartMutation.error instanceof Error
-                ? addToCartMutation.error.message
-                : 'Failed to add to cart'}
+            <Alert variant="destructive" className="mb-4">
+              <AlertDescription>
+                {addToCartMutation.error instanceof Error
+                  ? addToCartMutation.error.message
+                  : 'Failed to add to cart'}
+              </AlertDescription>
             </Alert>
           )}
 
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: { xs: 'column', md: 'row' },
-              gap: 4,
-            }}
-          >
-            <Box
-              sx={{
-                flex: { xs: '1 1 auto', md: '0 0 50%' },
-                maxWidth: { xs: '100%', md: '50%' },
-              }}
-            >
-              <Box
-                component="img"
+          <div className="flex flex-col gap-8 md:flex-row">
+            <div className="md:w-1/2 md:shrink-0">
+              <img
                 src={product.imageUrl ?? noPhoto}
                 alt={product.name}
-                sx={{
-                  width: '100%',
-                  height: 'auto',
-                  maxHeight: 500,
-                  objectFit: product.imageUrl ? 'cover' : 'none',
-                  bgcolor: '#F5F5F4',
-                  borderRadius: 3,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                }}
+                className={`max-h-125 w-full rounded-xl border bg-muted ${
+                  product.imageUrl ? 'object-cover' : 'object-none'
+                }`}
               />
-            </Box>
+            </div>
 
-            <Box sx={{ flex: 1 }}>
-              <Typography variant="h4" component="h1" gutterBottom>
-                {product.name}
-              </Typography>
+            <div className="min-w-0 flex-1">
+              <h1 className="mb-2 text-2xl font-semibold tracking-tight">{product.name}</h1>
 
               {product.category && (
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Category: {product.category}
-                </Typography>
+                <p className="mb-4 text-sm text-muted-foreground">Category: {product.category}</p>
               )}
 
               {product.tags && product.tags.length > 0 && (
-                <Box sx={{ mb: 2, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                <div className="mb-4 flex flex-wrap gap-2">
                   {product.tags.map((tag) => (
-                    <Chip key={tag} label={tag} size="small" />
+                    <Badge key={tag} variant="secondary">
+                      {tag}
+                    </Badge>
                   ))}
-                </Box>
+                </div>
               )}
 
-              <Box
-                sx={{ mb: 3, display: 'flex', alignItems: 'baseline', gap: 1.5, flexWrap: 'wrap' }}
-              >
+              <div className="mb-6 flex flex-wrap items-baseline gap-3">
                 {(() => {
                   const numericPrice = Number.parseFloat(product.price);
                   const parts = new Intl.NumberFormat('en-US', {
@@ -186,114 +164,78 @@ export function ProductDetailPage() {
                     .join('');
                   const fraction = parts.find((p) => p.type === 'fraction')?.value ?? '00';
                   return (
-                    <Typography
-                      component="span"
-                      sx={{ fontWeight: 'bold', display: 'inline-flex', alignItems: 'flex-start' }}
-                    >
-                      <Box
-                        component="span"
-                        sx={{ fontSize: '1rem', mt: '0.15em', color: 'text.secondary' }}
-                      >
-                        {symbol}
-                      </Box>
-                      <Box component="span" sx={{ fontSize: '2rem', lineHeight: 1 }}>
-                        {integer}
-                      </Box>
-                      <Box
-                        component="span"
-                        sx={{ fontSize: '1rem', mt: '0.15em', color: 'text.secondary' }}
-                      >
+                    <span className="inline-flex items-start font-bold">
+                      <span className="mt-[0.15em] text-base text-muted-foreground">{symbol}</span>
+                      <span className="text-4xl leading-none">{integer}</span>
+                      <span className="mt-[0.15em] text-base text-muted-foreground">
                         {fraction}
-                      </Box>
-                    </Typography>
+                      </span>
+                    </span>
                   );
                 })()}
                 {product.compareAtPrice && (
-                  <Typography variant="body1" color="text.secondary">
+                  <p className="text-muted-foreground">
                     Recommended:{' '}
-                    <Box component="span" sx={{ textDecoration: 'line-through' }}>
+                    <span className="line-through">
                       {formatPrice(product.compareAtPrice, product.currency)}
-                    </Box>
-                  </Typography>
+                    </span>
+                  </p>
                 )}
-              </Box>
+              </div>
 
-              {/* Purchase zone */}
-              <Box sx={{ bgcolor: '#F5F5F4', p: 3, borderRadius: 3, mb: 3 }}>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  Quantity
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                  <IconButton
+              <div className="mb-6 rounded-xl bg-muted p-6">
+                <p className="mb-2 text-sm text-muted-foreground">Quantity</p>
+                <div className="mb-4 flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon-sm"
+                    data-testid="decrease-quantity"
+                    aria-label="Decrease quantity"
                     onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
                     disabled={quantity <= 1 || addToCartMutation.isPending}
-                    size="small"
                   >
-                    <Remove />
-                  </IconButton>
-                  <Typography
-                    variant="body1"
-                    data-testid="quantity-input"
-                    sx={{ minWidth: 40, textAlign: 'center' }}
-                  >
+                    <Minus />
+                  </Button>
+                  <span data-testid="quantity-input" className="min-w-10 text-center">
                     {quantity}
-                  </Typography>
-                  <IconButton
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="icon-sm"
+                    data-testid="increase-quantity"
+                    aria-label="Increase quantity"
                     onClick={() => setQuantity((prev) => prev + 1)}
                     disabled={addToCartMutation.isPending}
-                    size="small"
                   >
-                    <Add />
-                  </IconButton>
-                </Box>
+                    <Plus />
+                  </Button>
+                </div>
 
                 <Button
-                  variant="contained"
-                  size="large"
-                  startIcon={<ShoppingCart />}
+                  size="lg"
                   onClick={() => addToCart()}
                   disabled={addToCartMutation.isPending}
-                  fullWidth
+                  className="w-full"
                   data-testid="add-to-cart-button"
-                  sx={{
-                    background: 'linear-gradient(135deg, #4F46E5, #4338CA)',
-                    '&:hover': {
-                      background: 'linear-gradient(135deg, #4338CA, #3730A3)',
-                    },
-                  }}
                 >
+                  <ShoppingCart />
                   {addToCartMutation.isPending ? 'Adding...' : 'Add to Cart'}
                 </Button>
-              </Box>
+              </div>
 
               {product.description && (
-                <Box>
-                  <Typography variant="h6" gutterBottom>
-                    Description
-                  </Typography>
-                  <Typography
-                    variant="body1"
-                    color="text.secondary"
-                    sx={{ whiteSpace: 'pre-line' }}
-                  >
-                    {product.description}
-                  </Typography>
-                </Box>
+                <div>
+                  <h2 className="mb-2 text-lg font-semibold">Description</h2>
+                  <p className="whitespace-pre-line text-muted-foreground">{product.description}</p>
+                </div>
               )}
-            </Box>
-          </Box>
-
-          <Snackbar
-            open={showSuccess}
-            autoHideDuration={3000}
-            onClose={() => setShowSuccess(false)}
-            message="Added to cart!"
-          />
-        </Box>
-        <Box sx={{ display: { xs: 'none', md: 'block' }, flexShrink: 0, width: 300 }}>
+            </div>
+          </div>
+        </div>
+        <div className="hidden w-75 shrink-0 lg:block">
           <CartSidebar />
-        </Box>
-      </Box>
+        </div>
+      </div>
     </Container>
   );
 }

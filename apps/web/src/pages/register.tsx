@@ -1,12 +1,9 @@
-import Alert from '@mui/material/Alert';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Link from '@mui/material/Link';
-import Paper from '@mui/material/Paper';
-import TextField from '@mui/material/TextField';
-import Typography from '@mui/material/Typography';
 import { useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useAuth } from '../contexts/auth-context';
 
 export function RegisterPage() {
@@ -47,102 +44,91 @@ export function RegisterPage() {
   };
 
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '60vh',
-        background: 'radial-gradient(ellipse at top, #EEF2FF 0%, #FAFAF9 70%)',
-        borderRadius: 4,
-      }}
-    >
-      <Paper
-        sx={{ p: 5, maxWidth: 400, width: '100%', boxShadow: '0 4px 24px rgba(28, 25, 23, 0.08)' }}
-      >
-        <Typography variant="h4" component="h1" gutterBottom>
-          Create your account
-        </Typography>
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="w-full max-w-100 rounded-xl border bg-card p-10 shadow-sm">
+        <h1 className="mb-4 text-2xl font-semibold tracking-tight">Create your account</h1>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
+          <Alert variant="destructive" className="mb-4">
+            <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
-        <form onSubmit={handleSubmit}>
-          <TextField
-            label="First Name"
-            fullWidth
-            required
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            margin="normal"
-            autoComplete="given-name"
-          />
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="first-name">First Name</Label>
+            <Input
+              id="first-name"
+              required
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              autoComplete="given-name"
+            />
+          </div>
 
-          <TextField
-            label="Last Name"
-            fullWidth
-            required
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            margin="normal"
-            autoComplete="family-name"
-          />
+          <div className="grid gap-2">
+            <Label htmlFor="last-name">Last Name</Label>
+            <Input
+              id="last-name"
+              required
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              autoComplete="family-name"
+            />
+          </div>
 
-          <TextField
-            label="Email"
-            type="email"
-            fullWidth
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            margin="normal"
-            autoComplete="email"
-          />
+          <div className="grid gap-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+            />
+          </div>
 
-          <TextField
-            label="Password"
-            type="password"
-            fullWidth
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            margin="normal"
-            autoComplete="new-password"
-            helperText="Must be at least 8 characters"
-          />
+          <div className="grid gap-2">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+              aria-describedby="password-hint"
+            />
+            <p id="password-hint" className="text-xs text-muted-foreground">
+              Must be at least 8 characters
+            </p>
+          </div>
 
-          <TextField
-            label="Confirm Password"
-            type="password"
-            fullWidth
-            required
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            margin="normal"
-            autoComplete="new-password"
-          />
+          <div className="grid gap-2">
+            <Label htmlFor="confirm-password">Confirm Password</Label>
+            <Input
+              id="confirm-password"
+              type="password"
+              required
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              autoComplete="new-password"
+            />
+          </div>
 
-          <Button
-            type="submit"
-            variant="contained"
-            fullWidth
-            disabled={loading}
-            sx={{ mt: 3, mb: 2 }}
-          >
+          <Button type="submit" className="mt-2 w-full" disabled={loading}>
             {loading ? 'Creating account...' : 'Register'}
           </Button>
 
-          <Typography variant="body2" align="center">
+          <p className="text-center text-sm">
             Already have an account?{' '}
-            <Link component={RouterLink} to="/login">
+            <RouterLink to="/login" className="text-primary underline-offset-4 hover:underline">
               Login here
-            </Link>
-          </Typography>
+            </RouterLink>
+          </p>
         </form>
-      </Paper>
-    </Box>
+      </div>
+    </div>
   );
 }

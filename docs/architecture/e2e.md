@@ -96,7 +96,6 @@ apps/web/e2e/
 **Weak**:
 - `search.spec.ts:129` — checks `MuiButton-contained` CSS class (MUI internal, breaks on upgrades)
 - `product-detail-page.ts:18` — price uses regex `text=/\\$[\\d,.]+/` (fragile to format changes)
-- Icon buttons use MUI's internal test IDs (`[data-testid="AddIcon"]`) instead of custom ones
 
 #### 3. Test Isolation — 8.5
 

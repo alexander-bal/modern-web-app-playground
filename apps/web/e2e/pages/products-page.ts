@@ -10,7 +10,7 @@ export class ProductsPage {
   constructor(page: Page) {
     this.page = page;
     this.productCards = page.getByTestId('product-card');
-    this.pagination = page.getByRole('navigation', { name: 'pagination navigation' });
+    this.pagination = page.getByTestId('pagination');
     this.loadingIndicator = page.getByRole('progressbar');
     this.emptyMessage = page.getByText('No products available at the moment.');
   }

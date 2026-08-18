@@ -18,12 +18,8 @@ export class ProductDetailPage {
     this.price = page.locator('text=/\\$[\\d,.]+/').first();
     this.quantityDisplay = page.getByTestId('quantity-input');
     this.addToCartButton = page.getByTestId('add-to-cart-button');
-    this.increaseQuantityButton = page.locator('button', {
-      has: page.locator('[data-testid="AddIcon"]'),
-    });
-    this.decreaseQuantityButton = page.locator('button', {
-      has: page.locator('[data-testid="RemoveIcon"]'),
-    });
+    this.increaseQuantityButton = page.getByTestId('increase-quantity');
+    this.decreaseQuantityButton = page.getByTestId('decrease-quantity');
     this.successMessage = page.getByText('Added to cart!');
     this.loadingIndicator = page.getByRole('progressbar');
     this.backButton = page.getByRole('button', { name: /back/i });

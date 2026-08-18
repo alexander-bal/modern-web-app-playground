@@ -1,21 +1,12 @@
-import Add from '@mui/icons-material/Add';
-import Delete from '@mui/icons-material/Delete';
-import Remove from '@mui/icons-material/Remove';
-import ShoppingCart from '@mui/icons-material/ShoppingCart';
-import Alert from '@mui/material/Alert';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
-import CircularProgress from '@mui/material/CircularProgress';
-import Container from '@mui/material/Container';
-import Divider from '@mui/material/Divider';
-import IconButton from '@mui/material/IconButton';
-import Paper from '@mui/material/Paper';
-import Typography from '@mui/material/Typography';
+import { Minus, Plus, ShoppingCart, Trash2, X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Container } from '@/components/ui/container';
+import { Separator } from '@/components/ui/separator';
+import { Spinner } from '@/components/ui/spinner';
 import noPhoto from '../assets/no-photo.svg';
 import { tsr } from '../lib/api-client';
 
@@ -121,236 +112,178 @@ export function CartPage() {
 
   if (isPending) {
     return (
-      <Container maxWidth="lg">
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
-          <CircularProgress />
-        </Box>
+      <Container>
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <Spinner className="size-10" />
+        </div>
       </Container>
     );
   }
 
   if (!cart || cart.items.length === 0) {
     return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Shopping Cart
-        </Typography>
-        <Paper sx={{ p: 6, textAlign: 'center' }}>
-          <Box
-            sx={{
-              width: 96,
-              height: 96,
-              borderRadius: '50%',
-              bgcolor: '#EEF2FF',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              mx: 'auto',
-              mb: 2,
-            }}
-          >
-            <ShoppingCart sx={{ fontSize: 48, color: 'primary.main' }} />
-          </Box>
-          <Typography variant="h6" gutterBottom>
-            Your cart is empty
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Add some products to get started!
-          </Typography>
-          <Button
-            component={Link}
-            to="/"
-            variant="contained"
-            size="large"
-            sx={{
-              background: 'linear-gradient(135deg, #4F46E5, #4338CA)',
-              '&:hover': {
-                background: 'linear-gradient(135deg, #4338CA, #3730A3)',
-              },
-            }}
-          >
+      <Container className="py-8">
+        <h1 className="mb-4 text-2xl font-semibold tracking-tight">Shopping Cart</h1>
+        <div className="rounded-xl border bg-card p-12 text-center shadow-sm">
+          <div className="mx-auto mb-4 flex size-24 items-center justify-center rounded-full bg-muted">
+            <ShoppingCart className="size-12 text-primary" />
+          </div>
+          <h2 className="mb-2 text-lg font-semibold">Your cart is empty</h2>
+          <p className="mb-6 text-sm text-muted-foreground">Add some products to get started!</p>
+          <Link to="/" className={buttonVariants({ size: 'lg' })}>
             Continue Shopping
-          </Button>
-        </Paper>
+          </Link>
+        </div>
       </Container>
     );
   }
 
+  const dismissibleErrors = [
+    error ? { key: 'cart', message: error, dismiss: () => setError(null) } : null,
+    updateItemMutation.error
+      ? {
+          key: 'update',
+          message:
+            updateItemMutation.error instanceof Error
+              ? updateItemMutation.error.message
+              : 'Failed to update item',
+          dismiss: () => updateItemMutation.reset(),
+        }
+      : null,
+    removeItemMutation.error
+      ? {
+          key: 'remove',
+          message:
+            removeItemMutation.error instanceof Error
+              ? removeItemMutation.error.message
+              : 'Failed to remove item',
+          dismiss: () => removeItemMutation.reset(),
+        }
+      : null,
+  ].filter((e) => e !== null);
+
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Shopping Cart
-      </Typography>
+    <Container className="py-8">
+      <h1 className="mb-4 text-2xl font-semibold tracking-tight">Shopping Cart</h1>
 
-      {error && (
-        <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
-          {error}
+      {dismissibleErrors.map((e) => (
+        <Alert key={e.key} variant="destructive" className="mb-4">
+          <AlertDescription>{e.message}</AlertDescription>
+          <AlertAction>
+            <Button size="icon-xs" variant="ghost" onClick={e.dismiss} aria-label="Dismiss error">
+              <X />
+            </Button>
+          </AlertAction>
         </Alert>
-      )}
-      {updateItemMutation.error && (
-        <Alert severity="error" onClose={() => updateItemMutation.reset()} sx={{ mb: 2 }}>
-          {updateItemMutation.error instanceof Error
-            ? updateItemMutation.error.message
-            : 'Failed to update item'}
-        </Alert>
-      )}
-      {removeItemMutation.error && (
-        <Alert severity="error" onClose={() => removeItemMutation.reset()} sx={{ mb: 2 }}>
-          {removeItemMutation.error instanceof Error
-            ? removeItemMutation.error.message
-            : 'Failed to remove item'}
-        </Alert>
-      )}
+      ))}
 
-      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3 }}>
-        <Box sx={{ flex: 1 }}>
+      <div className="flex flex-col gap-6 md:flex-row">
+        <div className="min-w-0 flex-1">
           {cart.items.map((item) => (
-            <Card
+            <div
               key={item.id}
               data-testid="cart-item"
-              sx={{ mb: 2, '&:hover': { transform: 'none' } }}
+              className="mb-4 rounded-xl border bg-card p-6 shadow-sm"
             >
-              <CardContent>
-                <Box sx={{ display: 'flex', gap: 2 }}>
-                  <Box
-                    component="img"
-                    src={item.productImageUrl ?? noPhoto}
-                    alt={item.productName}
-                    sx={{
-                      width: 120,
-                      height: 120,
-                      objectFit: item.productImageUrl ? 'cover' : 'none',
-                      bgcolor: '#F5F5F4',
-                      borderRadius: 1.5,
-                      flexShrink: 0,
-                    }}
-                  />
+              <div className="flex gap-4">
+                <img
+                  src={item.productImageUrl ?? noPhoto}
+                  alt={item.productName}
+                  className={`size-30 shrink-0 rounded-lg bg-muted ${
+                    item.productImageUrl ? 'object-cover' : 'object-none'
+                  }`}
+                />
 
-                  <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <Typography variant="h6" component="h2" gutterBottom>
-                      {item.productName}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>
-                      SKU: {item.productSku}
-                    </Typography>
-                    <Typography variant="body1" sx={{ mt: 'auto' }}>
-                      {formatPrice(item.unitPrice, item.currency)}
-                    </Typography>
-                  </Box>
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <h2 className="mb-1 text-lg font-semibold">{item.productName}</h2>
+                  <p className="mb-1 text-sm text-muted-foreground">SKU: {item.productSku}</p>
+                  <p className="mt-auto">{formatPrice(item.unitPrice, item.currency)}</p>
+                </div>
 
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'flex-end',
-                      justifyContent: 'space-between',
-                      minWidth: 150,
-                    }}
+                <div className="flex min-w-38 flex-col items-end justify-between">
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="text-destructive"
+                    data-testid="remove-cart-item"
+                    aria-label={`Remove ${item.productName} from cart`}
+                    onClick={() => removeItem(item.id)}
+                    disabled={removeItemMutation.isPending || updateItemMutation.isPending}
                   >
-                    <IconButton
-                      onClick={() => removeItem(item.id)}
-                      disabled={removeItemMutation.isPending || updateItemMutation.isPending}
-                      size="small"
-                      color="error"
+                    <Trash2 />
+                  </Button>
+
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon-sm"
+                      data-testid="decrease-quantity"
+                      aria-label={`Decrease quantity of ${item.productName}`}
+                      onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                      disabled={
+                        item.quantity <= 1 ||
+                        updateItemMutation.isPending ||
+                        removeItemMutation.isPending
+                      }
                     >
-                      <Delete />
-                    </IconButton>
+                      <Minus />
+                    </Button>
+                    <span data-testid="cart-item-quantity" className="min-w-8 text-center">
+                      {item.quantity}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="icon-sm"
+                      data-testid="increase-quantity"
+                      aria-label={`Increase quantity of ${item.productName}`}
+                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                      disabled={updateItemMutation.isPending || removeItemMutation.isPending}
+                    >
+                      <Plus />
+                    </Button>
+                  </div>
 
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <IconButton
-                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                        disabled={
-                          item.quantity <= 1 ||
-                          updateItemMutation.isPending ||
-                          removeItemMutation.isPending
-                        }
-                        size="small"
-                      >
-                        <Remove />
-                      </IconButton>
-                      <Typography
-                        variant="body1"
-                        data-testid="cart-item-quantity"
-                        sx={{ minWidth: 30, textAlign: 'center' }}
-                      >
-                        {item.quantity}
-                      </Typography>
-                      <IconButton
-                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                        disabled={updateItemMutation.isPending || removeItemMutation.isPending}
-                        size="small"
-                      >
-                        <Add />
-                      </IconButton>
-                    </Box>
-
-                    <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-                      {formatPrice(item.lineTotal, item.currency)}
-                    </Typography>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
+                  <p className="text-lg font-bold">{formatPrice(item.lineTotal, item.currency)}</p>
+                </div>
+              </div>
+            </div>
           ))}
-        </Box>
+        </div>
 
-        <Paper
-          sx={{
-            p: 3,
-            height: 'fit-content',
-            minWidth: { xs: '100%', md: 300 },
-            borderTop: '3px solid',
-            borderImage: 'linear-gradient(135deg, #4F46E5, #7C3AED) 1',
-          }}
-        >
-          <Typography variant="h6" gutterBottom>
-            Cart Summary
-          </Typography>
-          <Divider sx={{ my: 2 }} />
+        <div className="h-fit w-full rounded-xl border bg-card p-6 shadow-sm md:w-75 md:shrink-0">
+          <h2 className="mb-2 text-lg font-semibold">Cart Summary</h2>
+          <Separator className="my-4" />
 
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-            <Typography variant="body1">Items:</Typography>
-            <Typography variant="body1">{cart.itemCount}</Typography>
-          </Box>
+          <div className="mb-2 flex justify-between">
+            <p>Items:</p>
+            <p>{cart.itemCount}</p>
+          </div>
 
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-            <Typography variant="body1">Subtotal:</Typography>
-            <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+          <div className="mb-4 flex justify-between">
+            <p>Subtotal:</p>
+            <p className="font-bold">
               {cart.currency ? formatPrice(cart.subtotal, cart.currency) : cart.subtotal}
-            </Typography>
-          </Box>
+            </p>
+          </div>
 
-          <Divider sx={{ my: 2 }} />
+          <Separator className="my-4" />
 
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-            <Typography variant="h6">Total:</Typography>
-            <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+          <div className="mb-6 flex justify-between">
+            <p className="text-lg font-semibold">Total:</p>
+            <p className="text-lg font-bold">
               {cart.currency ? formatPrice(cart.subtotal, cart.currency) : cart.subtotal}
-            </Typography>
-          </Box>
+            </p>
+          </div>
 
-          <Button
-            component={Link}
-            to="/checkout"
-            variant="contained"
-            fullWidth
-            size="large"
-            sx={{
-              mb: 2,
-              background: 'linear-gradient(135deg, #4F46E5, #4338CA)',
-              '&:hover': {
-                background: 'linear-gradient(135deg, #4338CA, #3730A3)',
-              },
-            }}
-          >
+          <Link to="/checkout" className={buttonVariants({ size: 'lg', className: 'mb-4 w-full' })}>
             Proceed to Checkout
-          </Button>
+          </Link>
 
-          <Button component={Link} to="/" variant="outlined" fullWidth>
+          <Link to="/" className={buttonVariants({ variant: 'outline', className: 'w-full' })}>
             Continue Shopping
-          </Button>
-        </Paper>
-      </Box>
+          </Link>
+        </div>
+      </div>
     </Container>
   );
 }

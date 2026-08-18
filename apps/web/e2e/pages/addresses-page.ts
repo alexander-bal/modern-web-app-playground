@@ -35,7 +35,7 @@ export class AddressesPage {
     this.cityInput = page.getByLabel('City');
     this.postalCodeInput = page.getByLabel('Postal Code');
     this.countryCodeInput = page.getByLabel('Country Code');
-    this.setDefaultCheckbox = page.getByLabel('Set as default');
+    this.setDefaultCheckbox = page.getByRole('checkbox', { name: 'Set as default' });
     this.saveButton = page.getByRole('button', { name: 'Save' });
     this.cancelButton = page.getByRole('button', { name: 'Cancel' });
   }

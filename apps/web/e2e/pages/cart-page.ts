@@ -26,26 +26,15 @@ export class CartPage {
   }
 
   async removeItem(index: number) {
-    await this.cartItems
-      .nth(index)
-      .locator('button', { has: this.page.locator('[data-testid="DeleteIcon"]') })
-      .click();
+    await this.cartItems.nth(index).getByTestId('remove-cart-item').click();
   }
 
   async increaseItemQuantity(index: number) {
-    const item = this.cartItems.nth(index);
-    await item
-      .getByRole('button')
-      .filter({ has: this.page.locator('[data-testid="AddIcon"]') })
-      .click();
+    await this.cartItems.nth(index).getByTestId('increase-quantity').click();
   }
 
   async decreaseItemQuantity(index: number) {
-    const item = this.cartItems.nth(index);
-    await item
-      .getByRole('button')
-      .filter({ has: this.page.locator('[data-testid="RemoveIcon"]') })
-      .click();
+    await this.cartItems.nth(index).getByTestId('decrease-quantity').click();
   }
 
   async getItemQuantity(index: number) {

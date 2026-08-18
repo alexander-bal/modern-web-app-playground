@@ -1,22 +1,17 @@
-import Alert from '@mui/material/Alert';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
-import Checkbox from '@mui/material/Checkbox';
-import Chip from '@mui/material/Chip';
-import CircularProgress from '@mui/material/CircularProgress';
-import Container from '@mui/material/Container';
-import Divider from '@mui/material/Divider';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import Paper from '@mui/material/Paper';
-import Radio from '@mui/material/Radio';
-import RadioGroup from '@mui/material/RadioGroup';
-import TextField from '@mui/material/TextField';
-import Typography from '@mui/material/Typography';
+import { X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Alert, AlertAction, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Container } from '@/components/ui/container';
+import { FormField } from '@/components/ui/form-field';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Separator } from '@/components/ui/separator';
+import { Spinner } from '@/components/ui/spinner';
 import noPhoto from '../assets/no-photo.svg';
 import { tsr } from '../lib/api-client';
 
@@ -44,6 +39,83 @@ const emptyAddress: AddressFormData = {
 
 type ShippingMode = 'saved' | 'new';
 type BillingMode = 'saved' | 'new';
+
+interface AddressFieldSpec {
+  name: keyof AddressFormData;
+  label: string;
+  slug: string;
+  required?: boolean;
+  placeholder?: string;
+}
+
+/** Address inputs grouped into rows; two-field rows sit side by side. */
+const ADDRESS_ROWS: AddressFieldSpec[][] = [
+  [{ name: 'fullName', label: 'Full Name', slug: 'full-name', required: true }],
+  [{ name: 'addressLine1', label: 'Address Line 1', slug: 'address-line-1', required: true }],
+  [{ name: 'addressLine2', label: 'Address Line 2', slug: 'address-line-2' }],
+  [
+    { name: 'city', label: 'City', slug: 'city', required: true },
+    { name: 'state', label: 'State/Province', slug: 'state' },
+  ],
+  [
+    { name: 'postalCode', label: 'Postal Code', slug: 'postal-code', required: true },
+    {
+      name: 'countryCode',
+      label: 'Country Code',
+      slug: 'country-code',
+      required: true,
+      placeholder: 'US',
+    },
+  ],
+  [{ name: 'phone', label: 'Phone', slug: 'phone' }],
+];
+
+interface AddressFieldsProps {
+  idPrefix: string;
+  address: AddressFormData;
+  /** Key prefix under which validation messages are stored, e.g. `shipping`. */
+  errorPrefix?: string;
+  fieldErrors?: Record<string, string>;
+  onChange?: (field: keyof AddressFormData, value: string) => void;
+  disabled?: boolean;
+}
+
+function AddressFields({
+  idPrefix,
+  address,
+  errorPrefix,
+  fieldErrors,
+  onChange,
+  disabled,
+}: AddressFieldsProps) {
+  return (
+    <div className="flex flex-col gap-4">
+      {ADDRESS_ROWS.map((row) => {
+        const inputs = row.map((f) => (
+          <FormField
+            key={f.name}
+            id={`${idPrefix}-${f.slug}`}
+            label={f.label}
+            value={address[f.name]}
+            onChange={(e) => onChange?.(f.name, e.target.value)}
+            error={errorPrefix ? fieldErrors?.[`${errorPrefix}.${f.name}`] : undefined}
+            placeholder={f.placeholder}
+            required={f.required}
+            disabled={disabled}
+          />
+        ));
+
+        return row.length > 1 ? (
+          <div key={row[0].name} className="flex gap-4">
+            {inputs}
+          </div>
+        ) : (
+          inputs
+        );
+      })}
+    </div>
+  );
+}
 
 export function CheckoutPage() {
   const navigate = useNavigate();
@@ -233,22 +305,32 @@ export function CheckoutPage() {
 
   if (cartPending) {
     return (
-      <Container maxWidth="lg">
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
-          <CircularProgress />
-        </Box>
+      <Container>
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <Spinner className="size-10" />
+        </div>
       </Container>
     );
   }
 
   if (error && !cart) {
     return (
-      <Container maxWidth="lg">
-        <Box sx={{ mt: 4 }}>
-          <Alert severity="error" onClose={() => setError(null)}>
-            {error}
+      <Container>
+        <div className="mt-8">
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+            <AlertAction>
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                onClick={() => setError(null)}
+                aria-label="Dismiss error"
+              >
+                <X />
+              </Button>
+            </AlertAction>
           </Alert>
-        </Box>
+        </div>
       </Container>
     );
   }
@@ -266,30 +348,36 @@ export function CheckoutPage() {
   }) => `${addr.fullName}, ${addr.addressLine1}, ${addr.city}, ${addr.countryCode}`;
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Checkout
-      </Typography>
+    <Container className="py-8">
+      <h1 className="mb-4 text-2xl font-semibold tracking-tight">Checkout</h1>
 
       {error && (
-        <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
-          {error}
+        <Alert variant="destructive" className="mb-4">
+          <AlertDescription>{error}</AlertDescription>
+          <AlertAction>
+            <Button
+              size="icon-xs"
+              variant="ghost"
+              onClick={() => setError(null)}
+              aria-label="Dismiss error"
+            >
+              <X />
+            </Button>
+          </AlertAction>
         </Alert>
       )}
 
-      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3 }}>
-        <Box sx={{ flex: 1 }}>
-          {/* Shipping Address */}
-          <Paper sx={{ p: 3, mb: 3, borderTop: '3px solid #4F46E5' }}>
-            <Typography variant="h6" gutterBottom>
-              Shipping Address
-            </Typography>
+      <div className="flex flex-col gap-6 md:flex-row">
+        <div className="min-w-0 flex-1">
+          <div className="mb-6 rounded-xl border bg-card p-6 shadow-sm">
+            <h2 className="mb-2 text-lg font-semibold">Shipping Address</h2>
 
             {savedAddresses.length > 0 && (
               <RadioGroup
+                className="mb-4"
                 value={shippingMode === 'saved' ? (selectedShippingId ?? '') : '__new__'}
-                onChange={(e) => {
-                  const val = e.target.value;
+                onValueChange={(value) => {
+                  const val = value as string;
                   if (val === '__new__') {
                     setShippingMode('new');
                   } else {
@@ -302,173 +390,68 @@ export function CheckoutPage() {
                     });
                   }
                 }}
-                sx={{ mb: 2 }}
               >
                 {savedAddresses.map((addr) => (
-                  <FormControlLabel
-                    key={addr.id}
-                    value={addr.id}
-                    control={<Radio data-testid={`shipping-radio-${addr.id}`} />}
-                    label={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <span>{addressSummary(addr)}</span>
-                        {addr.isDefault && <Chip label="Default" size="small" color="primary" />}
-                      </Box>
-                    }
-                  />
+                  <Label key={addr.id} className="w-fit font-normal">
+                    <RadioGroupItem value={addr.id} data-testid={`shipping-radio-${addr.id}`} />
+                    <span>{addressSummary(addr)}</span>
+                    {addr.isDefault && <Badge>Default</Badge>}
+                  </Label>
                 ))}
-                <FormControlLabel
-                  value="__new__"
-                  control={<Radio />}
-                  label="Enter a new address"
-                  data-testid="shipping-new-radio"
-                />
+                <Label className="w-fit font-normal">
+                  <RadioGroupItem value="__new__" data-testid="shipping-new-radio" />
+                  Enter a new address
+                </Label>
               </RadioGroup>
             )}
 
             {fieldErrors.shippingPicker && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {fieldErrors.shippingPicker}
+              <Alert variant="destructive" className="mb-4">
+                <AlertDescription>{fieldErrors.shippingPicker}</AlertDescription>
               </Alert>
             )}
 
             {shippingMode === 'new' && (
               <>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <TextField
-                    label="Full Name"
-                    value={shippingAddress.fullName}
-                    onChange={(e) => updateShippingField('fullName', e.target.value)}
-                    error={
-                      !!fieldErrors['shipping.fullName'] ||
-                      !!fieldErrors['shippingAddress.fullName']
-                    }
-                    helperText={
-                      fieldErrors['shipping.fullName'] || fieldErrors['shippingAddress.fullName']
-                    }
-                    required
-                    fullWidth
-                  />
-                  <TextField
-                    label="Address Line 1"
-                    value={shippingAddress.addressLine1}
-                    onChange={(e) => updateShippingField('addressLine1', e.target.value)}
-                    error={
-                      !!fieldErrors['shipping.addressLine1'] ||
-                      !!fieldErrors['shippingAddress.addressLine1']
-                    }
-                    helperText={
-                      fieldErrors['shipping.addressLine1'] ||
-                      fieldErrors['shippingAddress.addressLine1']
-                    }
-                    required
-                    fullWidth
-                  />
-                  <TextField
-                    label="Address Line 2"
-                    value={shippingAddress.addressLine2}
-                    onChange={(e) => updateShippingField('addressLine2', e.target.value)}
-                    fullWidth
-                  />
-                  <Box sx={{ display: 'flex', gap: 2 }}>
-                    <TextField
-                      label="City"
-                      value={shippingAddress.city}
-                      onChange={(e) => updateShippingField('city', e.target.value)}
-                      error={
-                        !!fieldErrors['shipping.city'] || !!fieldErrors['shippingAddress.city']
-                      }
-                      helperText={
-                        fieldErrors['shipping.city'] || fieldErrors['shippingAddress.city']
-                      }
-                      required
-                      fullWidth
-                    />
-                    <TextField
-                      label="State/Province"
-                      value={shippingAddress.state}
-                      onChange={(e) => updateShippingField('state', e.target.value)}
-                      fullWidth
-                    />
-                  </Box>
-                  <Box sx={{ display: 'flex', gap: 2 }}>
-                    <TextField
-                      label="Postal Code"
-                      value={shippingAddress.postalCode}
-                      onChange={(e) => updateShippingField('postalCode', e.target.value)}
-                      error={
-                        !!fieldErrors['shipping.postalCode'] ||
-                        !!fieldErrors['shippingAddress.postalCode']
-                      }
-                      helperText={
-                        fieldErrors['shipping.postalCode'] ||
-                        fieldErrors['shippingAddress.postalCode']
-                      }
-                      required
-                      fullWidth
-                    />
-                    <TextField
-                      label="Country Code"
-                      value={shippingAddress.countryCode}
-                      onChange={(e) => updateShippingField('countryCode', e.target.value)}
-                      error={
-                        !!fieldErrors['shipping.countryCode'] ||
-                        !!fieldErrors['shippingAddress.countryCode']
-                      }
-                      helperText={
-                        fieldErrors['shipping.countryCode'] ||
-                        fieldErrors['shippingAddress.countryCode']
-                      }
-                      placeholder="US"
-                      required
-                      fullWidth
-                    />
-                  </Box>
-                  <TextField
-                    label="Phone"
-                    value={shippingAddress.phone}
-                    onChange={(e) => updateShippingField('phone', e.target.value)}
-                    fullWidth
-                  />
-                </Box>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={saveShippingAddress}
-                      onChange={(e) => setSaveShippingAddress(e.target.checked)}
-                      data-testid="save-shipping-checkbox"
-                    />
-                  }
-                  label="Save this address"
-                  sx={{ mt: 1 }}
+                <AddressFields
+                  idPrefix="shipping"
+                  address={shippingAddress}
+                  errorPrefix="shipping"
+                  fieldErrors={fieldErrors}
+                  onChange={updateShippingField}
                 />
+                <Label className="mt-4 w-fit font-normal">
+                  <Checkbox
+                    id="save-shipping-address"
+                    checked={saveShippingAddress}
+                    onCheckedChange={(checked) => setSaveShippingAddress(checked === true)}
+                    data-testid="save-shipping-checkbox"
+                  />
+                  Save this address
+                </Label>
               </>
             )}
-          </Paper>
+          </div>
 
-          {/* Billing Address */}
-          <Paper sx={{ p: 3, borderTop: '3px solid #818CF8' }}>
-            <Typography variant="h6" gutterBottom>
-              Billing Address
-            </Typography>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={billingSameAsShipping}
-                  onChange={(e) => handleBillingSameAsShippingChange(e.target.checked)}
-                />
-              }
-              label="Same as shipping address"
-              sx={{ mb: 2 }}
-            />
+          <div className="rounded-xl border bg-card p-6 shadow-sm">
+            <h2 className="mb-2 text-lg font-semibold">Billing Address</h2>
+            <Label className="mb-4 w-fit font-normal">
+              <Checkbox
+                id="billing-same-as-shipping"
+                checked={billingSameAsShipping}
+                onCheckedChange={(checked) => handleBillingSameAsShippingChange(checked === true)}
+              />
+              Same as shipping address
+            </Label>
 
             {!billingSameAsShipping && (
               <>
                 {savedAddresses.length > 0 && (
                   <RadioGroup
+                    className="mb-4"
                     value={billingMode === 'saved' ? (selectedBillingId ?? '') : '__new__'}
-                    onChange={(e) => {
-                      const val = e.target.value;
+                    onValueChange={(value) => {
+                      const val = value as string;
                       if (val === '__new__') {
                         setBillingMode('new');
                       } else {
@@ -481,291 +464,126 @@ export function CheckoutPage() {
                         });
                       }
                     }}
-                    sx={{ mb: 2 }}
                   >
                     {savedAddresses.map((addr) => (
-                      <FormControlLabel
-                        key={addr.id}
-                        value={addr.id}
-                        control={<Radio />}
-                        label={
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <span>{addressSummary(addr)}</span>
-                            {addr.isDefault && (
-                              <Chip label="Default" size="small" color="primary" />
-                            )}
-                          </Box>
-                        }
-                      />
+                      <Label key={addr.id} className="w-fit font-normal">
+                        <RadioGroupItem value={addr.id} />
+                        <span>{addressSummary(addr)}</span>
+                        {addr.isDefault && <Badge>Default</Badge>}
+                      </Label>
                     ))}
-                    <FormControlLabel
-                      value="__new__"
-                      control={<Radio />}
-                      label="Enter a new address"
-                    />
+                    <Label className="w-fit font-normal">
+                      <RadioGroupItem value="__new__" />
+                      Enter a new address
+                    </Label>
                   </RadioGroup>
                 )}
 
                 {fieldErrors.billingPicker && (
-                  <Alert severity="error" sx={{ mb: 2 }}>
-                    {fieldErrors.billingPicker}
+                  <Alert variant="destructive" className="mb-4">
+                    <AlertDescription>{fieldErrors.billingPicker}</AlertDescription>
                   </Alert>
                 )}
 
                 {billingMode === 'new' && (
                   <>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      <TextField
-                        label="Full Name"
-                        value={billingAddress.fullName}
-                        onChange={(e) => updateBillingField('fullName', e.target.value)}
-                        error={!!fieldErrors['billing.fullName']}
-                        helperText={fieldErrors['billing.fullName']}
-                        required
-                        fullWidth
-                      />
-                      <TextField
-                        label="Address Line 1"
-                        value={billingAddress.addressLine1}
-                        onChange={(e) => updateBillingField('addressLine1', e.target.value)}
-                        error={!!fieldErrors['billing.addressLine1']}
-                        helperText={fieldErrors['billing.addressLine1']}
-                        required
-                        fullWidth
-                      />
-                      <TextField
-                        label="Address Line 2"
-                        value={billingAddress.addressLine2}
-                        onChange={(e) => updateBillingField('addressLine2', e.target.value)}
-                        fullWidth
-                      />
-                      <Box sx={{ display: 'flex', gap: 2 }}>
-                        <TextField
-                          label="City"
-                          value={billingAddress.city}
-                          onChange={(e) => updateBillingField('city', e.target.value)}
-                          error={!!fieldErrors['billing.city']}
-                          helperText={fieldErrors['billing.city']}
-                          required
-                          fullWidth
-                        />
-                        <TextField
-                          label="State/Province"
-                          value={billingAddress.state}
-                          onChange={(e) => updateBillingField('state', e.target.value)}
-                          fullWidth
-                        />
-                      </Box>
-                      <Box sx={{ display: 'flex', gap: 2 }}>
-                        <TextField
-                          label="Postal Code"
-                          value={billingAddress.postalCode}
-                          onChange={(e) => updateBillingField('postalCode', e.target.value)}
-                          error={!!fieldErrors['billing.postalCode']}
-                          helperText={fieldErrors['billing.postalCode']}
-                          required
-                          fullWidth
-                        />
-                        <TextField
-                          label="Country Code"
-                          value={billingAddress.countryCode}
-                          onChange={(e) => updateBillingField('countryCode', e.target.value)}
-                          error={!!fieldErrors['billing.countryCode']}
-                          helperText={fieldErrors['billing.countryCode']}
-                          placeholder="US"
-                          required
-                          fullWidth
-                        />
-                      </Box>
-                      <TextField
-                        label="Phone"
-                        value={billingAddress.phone}
-                        onChange={(e) => updateBillingField('phone', e.target.value)}
-                        fullWidth
-                      />
-                    </Box>
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={saveBillingAddress}
-                          onChange={(e) => setSaveBillingAddress(e.target.checked)}
-                        />
-                      }
-                      label="Save this address"
-                      sx={{ mt: 1 }}
+                    <AddressFields
+                      idPrefix="billing"
+                      address={billingAddress}
+                      errorPrefix="billing"
+                      fieldErrors={fieldErrors}
+                      onChange={updateBillingField}
                     />
+                    <Label className="mt-4 w-fit font-normal">
+                      <Checkbox
+                        id="save-billing-address"
+                        checked={saveBillingAddress}
+                        onCheckedChange={(checked) => setSaveBillingAddress(checked === true)}
+                      />
+                      Save this address
+                    </Label>
                   </>
                 )}
               </>
             )}
 
             {billingSameAsShipping && (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <TextField
-                  label="Full Name"
-                  value={shippingAddress.fullName}
-                  required
-                  fullWidth
-                  disabled
-                />
-                <TextField
-                  label="Address Line 1"
-                  value={shippingAddress.addressLine1}
-                  required
-                  fullWidth
-                  disabled
-                />
-                <TextField
-                  label="Address Line 2"
-                  value={shippingAddress.addressLine2}
-                  fullWidth
-                  disabled
-                />
-                <Box sx={{ display: 'flex', gap: 2 }}>
-                  <TextField
-                    label="City"
-                    value={shippingAddress.city}
-                    required
-                    fullWidth
-                    disabled
-                  />
-                  <TextField
-                    label="State/Province"
-                    value={shippingAddress.state}
-                    fullWidth
-                    disabled
-                  />
-                </Box>
-                <Box sx={{ display: 'flex', gap: 2 }}>
-                  <TextField
-                    label="Postal Code"
-                    value={shippingAddress.postalCode}
-                    required
-                    fullWidth
-                    disabled
-                  />
-                  <TextField
-                    label="Country Code"
-                    value={shippingAddress.countryCode}
-                    required
-                    fullWidth
-                    disabled
-                  />
-                </Box>
-                <TextField label="Phone" value={shippingAddress.phone} fullWidth disabled />
-              </Box>
+              <AddressFields idPrefix="billing-mirror" address={shippingAddress} disabled />
             )}
-          </Paper>
-        </Box>
+          </div>
+        </div>
 
-        <Box sx={{ minWidth: { xs: '100%', md: 350 } }}>
-          <Paper
-            sx={{
-              p: 3,
-              position: 'sticky',
-              top: 16,
-              borderTop: '3px solid',
-              borderImage: 'linear-gradient(135deg, #4F46E5, #7C3AED) 1',
-            }}
-          >
-            <Typography variant="h6" gutterBottom>
-              Order Summary
-            </Typography>
-            <Divider sx={{ my: 2 }} />
+        <div className="w-full md:w-88 md:shrink-0">
+          <div className="sticky top-4 rounded-xl border bg-card p-6 shadow-sm">
+            <h2 className="mb-2 text-lg font-semibold">Order Summary</h2>
+            <Separator className="my-4" />
 
-            <Box sx={{ mb: 2, maxHeight: 300, overflowY: 'auto' }}>
+            <div className="mb-4 max-h-75 overflow-y-auto">
               {cart.items.map((item) => (
-                <Card key={item.id} variant="outlined" sx={{ mb: 1 }}>
-                  <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                    <Box sx={{ display: 'flex', gap: 1 }}>
-                      <Box
-                        component="img"
-                        src={item.productImageUrl ?? noPhoto}
-                        alt={item.productName}
-                        sx={{
-                          width: 50,
-                          height: 50,
-                          objectFit: item.productImageUrl ? 'cover' : 'none',
-                          bgcolor: '#F5F5F4',
-                          borderRadius: 1,
-                          flexShrink: 0,
-                        }}
-                      />
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography variant="body2" noWrap>
-                          {item.productName}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Qty: {item.quantity} × {formatPrice(item.unitPrice, item.currency)}
-                        </Typography>
-                        <Typography variant="body2" sx={{ fontWeight: 'bold' }}>
-                          {formatPrice(item.lineTotal, item.currency)}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </CardContent>
-                </Card>
+                <div key={item.id} className="mb-2 rounded-lg border p-4">
+                  <div className="flex gap-2">
+                    <img
+                      src={item.productImageUrl ?? noPhoto}
+                      alt={item.productName}
+                      className={`size-12 shrink-0 rounded bg-muted ${
+                        item.productImageUrl ? 'object-cover' : 'object-none'
+                      }`}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm">{item.productName}</p>
+                      <span className="text-xs text-muted-foreground">
+                        Qty: {item.quantity} × {formatPrice(item.unitPrice, item.currency)}
+                      </span>
+                      <p className="text-sm font-bold">
+                        {formatPrice(item.lineTotal, item.currency)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
               ))}
-            </Box>
+            </div>
 
-            <Divider sx={{ my: 2 }} />
+            <Separator className="my-4" />
 
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-              <Typography variant="body1">Subtotal:</Typography>
-              <Typography variant="body1">
-                {cart.currency ? formatPrice(cart.subtotal, cart.currency) : cart.subtotal}
-              </Typography>
-            </Box>
+            <div className="mb-2 flex justify-between">
+              <p>Subtotal:</p>
+              <p>{cart.currency ? formatPrice(cart.subtotal, cart.currency) : cart.subtotal}</p>
+            </div>
 
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-              <Typography variant="body2" color="text.secondary">
-                Tax:
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
+            <div className="mb-2 flex justify-between">
+              <p className="text-sm text-muted-foreground">Tax:</p>
+              <p className="text-sm text-muted-foreground">
                 {cart.currency ? formatPrice('0.00', cart.currency) : '$0.00'}
-              </Typography>
-            </Box>
+              </p>
+            </div>
 
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-              <Typography variant="body2" color="text.secondary">
-                Shipping:
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
+            <div className="mb-2 flex justify-between">
+              <p className="text-sm text-muted-foreground">Shipping:</p>
+              <p className="text-sm text-muted-foreground">
                 {cart.currency ? formatPrice('0.00', cart.currency) : '$0.00'}
-              </Typography>
-            </Box>
+              </p>
+            </div>
 
-            <Divider sx={{ my: 2 }} />
+            <Separator className="my-4" />
 
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-              <Typography variant="h6">Total:</Typography>
-              <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+            <div className="mb-6 flex justify-between">
+              <p className="text-lg font-semibold">Total:</p>
+              <p className="text-lg font-bold">
                 {cart.currency ? formatPrice(cart.subtotal, cart.currency) : cart.subtotal}
-              </Typography>
-            </Box>
+              </p>
+            </div>
 
             <Button
-              variant="contained"
-              fullWidth
-              size="large"
+              className="w-full"
+              size="lg"
               onClick={() => handlePlaceOrder()}
               disabled={checkoutMutation.isPending}
-              sx={{
-                background: 'linear-gradient(135deg, #4F46E5, #4338CA)',
-                '&:hover': {
-                  background: 'linear-gradient(135deg, #4338CA, #3730A3)',
-                },
-              }}
             >
-              {checkoutMutation.isPending ? (
-                <CircularProgress size={24} color="inherit" />
-              ) : (
-                'Place Order'
-              )}
+              {checkoutMutation.isPending ? <Spinner className="size-6" /> : 'Place Order'}
             </Button>
-          </Paper>
-        </Box>
-      </Box>
+          </div>
+        </div>
+      </div>
     </Container>
   );
 }

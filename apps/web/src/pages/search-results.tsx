@@ -1,17 +1,9 @@
-import Alert from '@mui/material/Alert';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import ButtonGroup from '@mui/material/ButtonGroup';
-import Card from '@mui/material/Card';
-import CardActionArea from '@mui/material/CardActionArea';
-import CardContent from '@mui/material/CardContent';
-import CardMedia from '@mui/material/CardMedia';
-import Chip from '@mui/material/Chip';
-import CircularProgress from '@mui/material/CircularProgress';
-import Container from '@mui/material/Container';
-import Pagination from '@mui/material/Pagination';
-import Typography from '@mui/material/Typography';
 import { Link, useSearchParams } from 'react-router-dom';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Container } from '@/components/ui/container';
+import { Pagination } from '@/components/ui/pagination';
+import { Spinner } from '@/components/ui/spinner';
 import noPhoto from '../assets/no-photo.svg';
 import { tsr } from '../lib/api-client';
 
@@ -60,193 +52,128 @@ export function SearchResultsPage() {
     setSearchParams({ q: query, sort: newSort, page: '1' });
   };
 
-  const handlePageChange = (_: unknown, value: number) => {
+  const handlePageChange = (value: number) => {
     setSearchParams({ q: query, sort, page: value.toString() });
   };
 
   if (!query) {
     return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Search Products
-        </Typography>
-        <Alert severity="info">Enter a search query to find products.</Alert>
+      <Container className="py-8">
+        <h1 className="mb-4 text-2xl font-semibold tracking-tight">Search Products</h1>
+        <Alert>
+          <AlertDescription>Enter a search query to find products.</AlertDescription>
+        </Alert>
       </Container>
     );
   }
 
   if (validationError) {
     return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Search Results
-        </Typography>
-        <Alert severity="error">{validationError}</Alert>
+      <Container className="py-8">
+        <h1 className="mb-4 text-2xl font-semibold tracking-tight">Search Results</h1>
+        <Alert variant="destructive">
+          <AlertDescription>{validationError}</AlertDescription>
+        </Alert>
       </Container>
     );
   }
 
   if (isPending) {
     return (
-      <Container maxWidth="lg">
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="100vh">
-          <CircularProgress />
-        </Box>
+      <Container>
+        <div className="flex min-h-screen items-center justify-center">
+          <Spinner className="size-10" />
+        </div>
       </Container>
     );
   }
 
   if (error) {
     return (
-      <Container maxWidth="lg">
-        <Box sx={{ mt: 4 }}>
-          <Alert severity="error">
-            {error instanceof Error ? error.message : 'An error occurred'}
+      <Container>
+        <div className="mt-8">
+          <Alert variant="destructive">
+            <AlertDescription>
+              {error instanceof Error ? error.message : 'An error occurred'}
+            </AlertDescription>
           </Alert>
-        </Box>
+        </div>
       </Container>
     );
   }
 
+  const sortOptions: { value: SortOption; label: string }[] = [
+    { value: 'relevance', label: 'Relevance' },
+    { value: 'price_asc', label: 'Price: Low to High' },
+    { value: 'price_desc', label: 'Price: High to Low' },
+  ];
+
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Search results for: "{query}"
-      </Typography>
+    <Container className="py-8">
+      <h1 className="mb-4 text-2xl font-semibold tracking-tight">Search results for: "{query}"</h1>
 
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="body1" color="text.secondary">
+      <div className="mb-6 flex items-center justify-between">
+        <p className="text-muted-foreground">
           {pagination?.total || 0} {pagination?.total === 1 ? 'result' : 'results'} found
-        </Typography>
+        </p>
 
-        <ButtonGroup variant="outlined" size="small">
-          <Button
-            onClick={() => handleSortChange('relevance')}
-            variant={sort === 'relevance' ? 'contained' : 'outlined'}
-            aria-pressed={sort === 'relevance'}
-          >
-            Relevance
-          </Button>
-          <Button
-            onClick={() => handleSortChange('price_asc')}
-            variant={sort === 'price_asc' ? 'contained' : 'outlined'}
-            aria-pressed={sort === 'price_asc'}
-          >
-            Price: Low to High
-          </Button>
-          <Button
-            onClick={() => handleSortChange('price_desc')}
-            variant={sort === 'price_desc' ? 'contained' : 'outlined'}
-            aria-pressed={sort === 'price_desc'}
-          >
-            Price: High to Low
-          </Button>
-        </ButtonGroup>
-      </Box>
+        <div className="flex gap-1">
+          {sortOptions.map((option) => (
+            <Button
+              key={option.value}
+              size="sm"
+              variant={sort === option.value ? 'default' : 'outline'}
+              onClick={() => handleSortChange(option.value)}
+              aria-pressed={sort === option.value}
+            >
+              {option.label}
+            </Button>
+          ))}
+        </div>
+      </div>
 
       {products.length === 0 ? (
-        <Alert severity="info">No products match your search. Try different keywords.</Alert>
+        <Alert>
+          <AlertDescription>
+            No products match your search. Try different keywords.
+          </AlertDescription>
+        </Alert>
       ) : (
         <>
-          <Box
-            sx={{
-              display: 'grid',
-              gridTemplateColumns: {
-                xs: '1fr',
-                sm: 'repeat(2, 1fr)',
-                md: 'repeat(3, 1fr)',
-                lg: 'repeat(4, 1fr)',
-              },
-              gap: 3,
-            }}
-          >
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {products.map((product) => (
-              <Card
+              <div
                 key={product.id}
                 data-testid="product-card"
-                sx={{ display: 'flex', flexDirection: 'column', height: 'auto', minHeight: 340 }}
+                className="flex min-h-85 flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition-shadow hover:shadow-md"
               >
-                <CardActionArea
-                  component={Link}
-                  to={`/products/${product.slug}`}
-                  sx={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    height: '100%',
-                    alignItems: 'stretch',
-                  }}
-                >
-                  <Box sx={{ position: 'relative' }}>
-                    <CardMedia
-                      component="img"
-                      image={product.imageUrl ?? noPhoto}
+                <Link to={`/products/${product.slug}`} className="flex h-full flex-col">
+                  <div className="relative">
+                    <img
+                      src={product.imageUrl ?? noPhoto}
                       alt={product.name}
-                      sx={{
-                        height: 200,
-                        flexShrink: 0,
-                        objectFit: product.imageUrl ? 'cover' : 'none',
-                        bgcolor: '#F5F5F4',
-                      }}
+                      className={`h-50 w-full shrink-0 bg-muted ${
+                        product.imageUrl ? 'object-cover' : 'object-none'
+                      }`}
                     />
                     {product.compareAtPrice && (
-                      <Chip
-                        label={`−${Math.round((1 - Number.parseFloat(product.price) / Number.parseFloat(product.compareAtPrice)) * 100)}%`}
-                        size="small"
-                        sx={{
-                          position: 'absolute',
-                          top: 8,
-                          right: 8,
-                          bgcolor: 'secondary.main',
-                          color: 'white',
-                          fontWeight: 700,
-                          fontSize: '0.6875rem',
-                          height: 22,
-                          borderRadius: 1,
-                          pointerEvents: 'none',
-                        }}
-                      />
+                      <span className="pointer-events-none absolute top-2 right-2 rounded bg-destructive px-1.5 py-0.5 text-[0.6875rem] font-bold text-white">
+                        {`−${Math.round((1 - Number.parseFloat(product.price) / Number.parseFloat(product.compareAtPrice)) * 100)}%`}
+                      </span>
                     )}
-                  </Box>
-                  <CardContent
-                    sx={{
-                      flexGrow: 1,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      overflow: 'hidden',
-                    }}
-                  >
-                    <Typography
-                      variant="h6"
-                      component="h2"
-                      sx={{
-                        overflow: 'hidden',
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        lineHeight: 1.3,
-                        mb: 0.5,
-                      }}
-                    >
+                  </div>
+                  <div className="flex grow flex-col overflow-hidden p-4">
+                    <h2 className="mb-1 line-clamp-2 text-base leading-tight font-semibold">
                       {product.name}
-                    </Typography>
+                    </h2>
 
                     {product.shortDescription && (
-                      <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        sx={{
-                          overflow: 'hidden',
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          mb: 1,
-                        }}
-                      >
+                      <p className="mb-2 line-clamp-2 text-sm text-muted-foreground">
                         {product.shortDescription}
-                      </Typography>
+                      </p>
                     )}
 
-                    <Box sx={{ mt: 'auto' }}>
+                    <div className="mt-auto">
                       {(() => {
                         const numericPrice = Number.parseFloat(product.price);
                         const parts = new Intl.NumberFormat('en-US', {
@@ -260,60 +187,38 @@ export function SearchResultsPage() {
                           .join('');
                         const fraction = parts.find((p) => p.type === 'fraction')?.value ?? '00';
                         return (
-                          <Typography
-                            component="span"
-                            sx={{
-                              fontWeight: 'bold',
-                              display: 'inline-flex',
-                              alignItems: 'flex-start',
-                              color: product.compareAtPrice ? 'secondary.dark' : 'text.primary',
-                            }}
+                          <span
+                            className={`inline-flex items-start font-bold ${
+                              product.compareAtPrice ? 'text-destructive' : 'text-foreground'
+                            }`}
                           >
-                            <Box
-                              component="span"
-                              sx={{ fontSize: '0.8rem', mt: '0.1em', opacity: 0.7 }}
-                            >
-                              {symbol}
-                            </Box>
-                            <Box component="span" sx={{ fontSize: '1.5rem', lineHeight: 1 }}>
-                              {integer}
-                            </Box>
-                            <Box
-                              component="span"
-                              sx={{ fontSize: '0.8rem', mt: '0.1em', opacity: 0.7 }}
-                            >
-                              {fraction}
-                            </Box>
-                          </Typography>
+                            <span className="mt-[0.1em] text-[0.8rem] opacity-70">{symbol}</span>
+                            <span className="text-2xl leading-none">{integer}</span>
+                            <span className="mt-[0.1em] text-[0.8rem] opacity-70">{fraction}</span>
+                          </span>
                         );
                       })()}
                       {product.compareAtPrice && (
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          sx={{ display: 'block', textDecoration: 'line-through', mt: 0.25 }}
-                        >
+                        <span className="mt-0.5 block text-xs text-muted-foreground line-through">
                           {formatPrice(product.compareAtPrice, product.currency)}
-                        </Typography>
+                        </span>
                       )}
-                    </Box>
-                  </CardContent>
-                </CardActionArea>
-              </Card>
+                    </div>
+                  </div>
+                </Link>
+              </div>
             ))}
-          </Box>
+          </div>
 
           {pagination && pagination.totalPages > 1 && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+            <div className="mt-8 flex justify-center">
               <Pagination
+                data-testid="pagination"
                 count={pagination.totalPages}
                 page={page}
                 onChange={handlePageChange}
-                color="primary"
-                showFirstButton
-                showLastButton
               />
-            </Box>
+            </div>
           )}
         </>
       )}

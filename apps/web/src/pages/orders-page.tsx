@@ -1,20 +1,17 @@
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import Accordion from '@mui/material/Accordion';
-import AccordionDetails from '@mui/material/AccordionDetails';
-import AccordionSummary from '@mui/material/AccordionSummary';
-import Alert from '@mui/material/Alert';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
-import type { ChipProps } from '@mui/material/Chip';
-import Chip from '@mui/material/Chip';
-import CircularProgress from '@mui/material/CircularProgress';
-import Container from '@mui/material/Container';
-import Divider from '@mui/material/Divider';
-import Typography from '@mui/material/Typography';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button, buttonVariants } from '@/components/ui/button';
+import { Container } from '@/components/ui/container';
+import { Separator } from '@/components/ui/separator';
+import { Spinner } from '@/components/ui/spinner';
 import noPhoto from '../assets/no-photo.svg';
 import { tsr } from '../lib/api-client';
 import { parseAddress } from '../lib/parse-address';
@@ -65,270 +62,215 @@ export function OrdersPage() {
     });
   };
 
-  const getStatusColor = (status: OrderStatus): ChipProps['color'] => {
+  const getStatusVariant = (status: OrderStatus): 'default' | 'secondary' | 'destructive' => {
     switch (status) {
-      case 'draft':
-        return 'default';
       case 'confirmed':
-        return 'info';
-      case 'processing':
-        return 'warning';
       case 'shipped':
-        return 'info';
       case 'fulfilled':
-        return 'success';
       case 'paid':
-        return 'success';
-      case 'cancelled':
-        return 'error';
-      default:
         return 'default';
+      case 'cancelled':
+        return 'destructive';
+      default:
+        return 'secondary';
     }
-  };
-
-  const handleAccordionChange = (orderId: string) => {
-    setExpandedOrderId((prev) => (prev === orderId ? null : orderId));
   };
 
   if (isPending) {
     return (
-      <Container maxWidth="lg">
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
-          <CircularProgress />
-        </Box>
+      <Container>
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <Spinner className="size-10" />
+        </div>
       </Container>
     );
   }
 
   if (error) {
     return (
-      <Container maxWidth="lg">
-        <Box sx={{ mt: 4 }}>
-          <Alert severity="error">{error}</Alert>
-          <Button onClick={() => refetch()} variant="contained" sx={{ mt: 2 }}>
+      <Container>
+        <div className="mt-8">
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+          <Button onClick={() => refetch()} className="mt-4">
             Retry
           </Button>
-        </Box>
+        </div>
       </Container>
     );
   }
 
   if (!orders || orders.length === 0) {
     return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          My Orders
-        </Typography>
-        <Box sx={{ mt: 4, textAlign: 'center' }}>
-          <Typography variant="h5" gutterBottom>
-            You haven't placed any orders yet
-          </Typography>
-          <Button component={Link} to="/" variant="contained" sx={{ mt: 2 }}>
+      <Container className="py-8">
+        <h1 className="mb-4 text-2xl font-semibold tracking-tight">My Orders</h1>
+        <div className="mt-8 text-center">
+          <h2 className="mb-2 text-xl font-semibold">You haven't placed any orders yet</h2>
+          <Link to="/" className={buttonVariants({ className: 'mt-4' })}>
             Browse Products
-          </Button>
-        </Box>
+          </Link>
+        </div>
       </Container>
     );
   }
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        My Orders
-      </Typography>
+    <Container className="py-8">
+      <h1 className="mb-4 text-2xl font-semibold tracking-tight">My Orders</h1>
 
-      {orders.map((order) => {
-        const shippingAddress = parseAddress(order.shippingAddress);
+      <Accordion
+        multiple={false}
+        value={expandedOrderId ? [expandedOrderId] : []}
+        onValueChange={(value) => setExpandedOrderId((value[0] as string | undefined) ?? null)}
+      >
+        {orders.map((order) => {
+          const shippingAddress = parseAddress(order.shippingAddress);
 
-        return (
-          <Accordion
-            key={order.id}
-            expanded={expandedOrderId === order.id}
-            onChange={() => handleAccordionChange(order.id)}
-            sx={{
-              mb: 2,
-              ...(expandedOrderId === order.id && {
-                borderLeft: '3px solid #4F46E5',
-              }),
-            }}
-          >
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Box
-                sx={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  width: '100%',
-                  pr: 2,
-                }}
-              >
-                <Box>
-                  <Typography variant="h6">Order {order.orderNumber}</Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {formatDate(order.orderDate)}
-                  </Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Typography variant="h6">
-                    {formatPrice(order.totalAmount, order.currency)}
-                  </Typography>
-                  <Chip label={order.status} color={getStatusColor(order.status as OrderStatus)} />
-                </Box>
-              </Box>
-            </AccordionSummary>
+          return (
+            <AccordionItem
+              key={order.id}
+              value={order.id}
+              className="mb-4 rounded-xl border bg-card px-6 shadow-sm"
+            >
+              <AccordionTrigger data-testid="order-accordion-trigger">
+                <div className="flex w-full items-center justify-between pr-4">
+                  <div className="text-left">
+                    <span className="block text-lg font-semibold">Order {order.orderNumber}</span>
+                    <span className="block text-sm font-normal text-muted-foreground">
+                      {formatDate(order.orderDate)}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-lg font-semibold">
+                      {formatPrice(order.totalAmount, order.currency)}
+                    </span>
+                    <Badge variant={getStatusVariant(order.status as OrderStatus)}>
+                      {order.status}
+                    </Badge>
+                  </div>
+                </div>
+              </AccordionTrigger>
 
-            <AccordionDetails>
-              <Box>
-                <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              <AccordionContent>
+                <h3 className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                   Order Items
-                </Typography>
+                </h3>
 
                 {order.items.length === 0 ? (
-                  <Typography variant="body2" sx={{ mb: 2 }}>
-                    No items found for this order.
-                  </Typography>
+                  <p className="mb-4 text-sm">No items found for this order.</p>
                 ) : (
                   order.items.map((item) => (
-                    <Card
-                      key={item.id}
-                      variant="outlined"
-                      sx={{ mb: 1, '&:hover': { transform: 'none' } }}
-                    >
-                      <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
-                        <Box sx={{ display: 'flex', gap: 2 }}>
-                          <Box
-                            component="img"
-                            src={item.productImageUrl ?? noPhoto}
-                            alt={item.productName}
-                            sx={{
-                              width: 60,
-                              height: 60,
-                              objectFit: item.productImageUrl ? 'cover' : 'none',
-                              bgcolor: '#F5F5F4',
-                              borderRadius: 1,
-                              flexShrink: 0,
-                            }}
-                          />
-                          <Box sx={{ flex: 1 }}>
-                            <Typography variant="body1">{item.productName}</Typography>
-                            <Typography variant="body2" color="text.secondary">
-                              SKU: {item.productSku}
-                            </Typography>
-                            <Typography variant="body2">
-                              Quantity: {item.quantity} ×{' '}
-                              {formatPrice(item.unitPrice, item.currency)}
-                            </Typography>
-                          </Box>
-                          <Typography
-                            variant="body1"
-                            sx={{ fontWeight: 'bold', alignSelf: 'center' }}
-                          >
-                            {formatPrice(item.lineTotal, item.currency)}
-                          </Typography>
-                        </Box>
-                      </CardContent>
-                    </Card>
+                    <div key={item.id} className="mb-2 rounded-lg border p-4">
+                      <div className="flex gap-4">
+                        <img
+                          src={item.productImageUrl ?? noPhoto}
+                          alt={item.productName}
+                          className={`size-15 shrink-0 rounded bg-muted ${
+                            item.productImageUrl ? 'object-cover' : 'object-none'
+                          }`}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p>{item.productName}</p>
+                          <p className="text-sm text-muted-foreground">SKU: {item.productSku}</p>
+                          <p className="text-sm">
+                            Quantity: {item.quantity} × {formatPrice(item.unitPrice, item.currency)}
+                          </p>
+                        </div>
+                        <p className="self-center font-bold">
+                          {formatPrice(item.lineTotal, item.currency)}
+                        </p>
+                      </div>
+                    </div>
                   ))
                 )}
 
-                <Divider sx={{ my: 2 }} />
+                <Separator className="my-4" />
 
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="body1">Subtotal:</Typography>
-                  <Typography variant="body1">
-                    {formatPrice(order.subtotal, order.currency)}
-                  </Typography>
-                </Box>
+                <div className="mb-2 flex justify-between">
+                  <p>Subtotal:</p>
+                  <p>{formatPrice(order.subtotal, order.currency)}</p>
+                </div>
 
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Tax:
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                <div className="mb-2 flex justify-between">
+                  <p className="text-sm text-muted-foreground">Tax:</p>
+                  <p className="text-sm text-muted-foreground">
                     {formatPrice(order.taxAmount, order.currency)}
-                  </Typography>
-                </Box>
+                  </p>
+                </div>
 
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Shipping:
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                <div className="mb-2 flex justify-between">
+                  <p className="text-sm text-muted-foreground">Shipping:</p>
+                  <p className="text-sm text-muted-foreground">
                     {formatPrice(order.shippingAmount, order.currency)}
-                  </Typography>
-                </Box>
+                  </p>
+                </div>
 
                 {order.discountAmount && Number.parseFloat(order.discountAmount) > 0 && (
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography variant="body2" color="text.secondary">
-                      Discount:
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
+                  <div className="mb-2 flex justify-between">
+                    <p className="text-sm text-muted-foreground">Discount:</p>
+                    <p className="text-sm text-muted-foreground">
                       -{formatPrice(order.discountAmount, order.currency)}
-                    </Typography>
-                  </Box>
+                    </p>
+                  </div>
                 )}
 
-                <Divider sx={{ my: 2 }} />
+                <Separator className="my-4" />
 
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-                  <Typography variant="h6">Total:</Typography>
-                  <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
+                <div className="mb-6 flex justify-between">
+                  <p className="text-lg font-semibold">Total:</p>
+                  <p className="text-lg font-bold">
                     {formatPrice(order.totalAmount, order.currency)}
-                  </Typography>
-                </Box>
+                  </p>
+                </div>
 
                 {shippingAddress && (
                   <>
-                    <Divider sx={{ my: 2 }} />
-                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    <Separator className="my-4" />
+                    <h3 className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                       Shipping Address
-                    </Typography>
-                    <Typography variant="body2">{shippingAddress.fullName}</Typography>
-                    <Typography variant="body2">{shippingAddress.addressLine1}</Typography>
+                    </h3>
+                    <p className="text-sm">{shippingAddress.fullName}</p>
+                    <p className="text-sm">{shippingAddress.addressLine1}</p>
                     {shippingAddress.addressLine2 && (
-                      <Typography variant="body2">{shippingAddress.addressLine2}</Typography>
+                      <p className="text-sm">{shippingAddress.addressLine2}</p>
                     )}
-                    <Typography variant="body2">
+                    <p className="text-sm">
                       {shippingAddress.city}
                       {shippingAddress.state && `, ${shippingAddress.state}`}{' '}
                       {shippingAddress.postalCode}
-                    </Typography>
-                    <Typography variant="body2">{shippingAddress.countryCode}</Typography>
-                    {shippingAddress.phone && (
-                      <Typography variant="body2">{shippingAddress.phone}</Typography>
-                    )}
+                    </p>
+                    <p className="text-sm">{shippingAddress.countryCode}</p>
+                    {shippingAddress.phone && <p className="text-sm">{shippingAddress.phone}</p>}
                   </>
                 )}
 
                 {order.paymentTransactionId && (
                   <>
-                    <Divider sx={{ my: 2 }} />
-                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    <Separator className="my-4" />
+                    <h3 className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                       Payment
-                    </Typography>
-                    <Typography variant="body2">
-                      Transaction ID: {order.paymentTransactionId}
-                    </Typography>
+                    </h3>
+                    <p className="text-sm">Transaction ID: {order.paymentTransactionId}</p>
                   </>
                 )}
 
                 {order.expectedDeliveryDate && (
                   <>
-                    <Divider sx={{ my: 2 }} />
-                    <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    <Separator className="my-4" />
+                    <h3 className="mb-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                       Timeline
-                    </Typography>
-                    <Typography variant="body2">
+                    </h3>
+                    <p className="text-sm">
                       Expected Delivery: {formatDate(order.expectedDeliveryDate)}
-                    </Typography>
+                    </p>
                   </>
                 )}
-              </Box>
-            </AccordionDetails>
-          </Accordion>
-        );
-      })}
+              </AccordionContent>
+            </AccordionItem>
+          );
+        })}
+      </Accordion>
     </Container>
   );
 }

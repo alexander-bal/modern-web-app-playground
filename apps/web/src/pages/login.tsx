@@ -1,12 +1,9 @@
-import Alert from '@mui/material/Alert';
-import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Link from '@mui/material/Link';
-import Paper from '@mui/material/Paper';
-import TextField from '@mui/material/TextField';
-import Typography from '@mui/material/Typography';
 import { useState } from 'react';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useAuth } from '../contexts/auth-context';
 
 export function LoginPage() {
@@ -35,70 +32,53 @@ export function LoginPage() {
   };
 
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '60vh',
-        background: 'radial-gradient(ellipse at top, #EEF2FF 0%, #FAFAF9 70%)',
-        borderRadius: 4,
-      }}
-    >
-      <Paper
-        sx={{ p: 5, maxWidth: 400, width: '100%', boxShadow: '0 4px 24px rgba(28, 25, 23, 0.08)' }}
-      >
-        <Typography variant="h4" component="h1" gutterBottom>
-          Welcome back
-        </Typography>
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="w-full max-w-100 rounded-xl border bg-card p-10 shadow-sm">
+        <h1 className="mb-4 text-2xl font-semibold tracking-tight">Welcome back</h1>
 
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
-            {error}
+          <Alert variant="destructive" className="mb-4">
+            <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
-        <form onSubmit={handleSubmit}>
-          <TextField
-            label="Email"
-            type="email"
-            fullWidth
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            margin="normal"
-            autoComplete="email"
-          />
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+            />
+          </div>
 
-          <TextField
-            label="Password"
-            type="password"
-            fullWidth
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            margin="normal"
-            autoComplete="current-password"
-          />
+          <div className="grid gap-2">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+          </div>
 
-          <Button
-            type="submit"
-            variant="contained"
-            fullWidth
-            disabled={loading}
-            sx={{ mt: 3, mb: 2 }}
-          >
+          <Button type="submit" className="mt-2 w-full" disabled={loading}>
             {loading ? 'Logging in...' : 'Login'}
           </Button>
 
-          <Typography variant="body2" align="center">
+          <p className="text-center text-sm">
             Don't have an account?{' '}
-            <Link component={RouterLink} to="/register">
+            <RouterLink to="/register" className="text-primary underline-offset-4 hover:underline">
               Register here
-            </Link>
-          </Typography>
+            </RouterLink>
+          </p>
         </form>
-      </Paper>
-    </Box>
+      </div>
+    </div>
   );
 }

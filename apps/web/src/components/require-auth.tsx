@@ -1,7 +1,6 @@
-import Box from '@mui/material/Box';
-import CircularProgress from '@mui/material/CircularProgress';
 import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
+import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from '../contexts/auth-context';
 
 interface RequireAuthProps {
@@ -14,16 +13,9 @@ export function RequireAuth({ children }: RequireAuthProps) {
 
   if (loading) {
     return (
-      <Box
-        sx={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          minHeight: '60vh',
-        }}
-      >
-        <CircularProgress />
-      </Box>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Spinner className="size-10" />
+      </div>
     );
   }
 
