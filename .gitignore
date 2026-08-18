@@ -89,6 +89,9 @@ temp/
 local/
 test-results/
 
+# Playwright CLI session artifacts
+.playwright-cli/
+
 # Editor directories and files
 .vscode/
 .idea/
