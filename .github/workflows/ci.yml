@@ -36,10 +36,10 @@ jobs:
         run: pnpm run format:check
 
       - name: Build
-        run: turbo run build
+        run: pnpm run build
 
       - name: Static checks
-        run: turbo run typecheck lint:biome lint:eslint type-coverage
+        run: pnpm exec turbo run typecheck lint:biome lint:eslint type-coverage
 
       - name: Security audit
         run: pnpm audit --audit-level moderate
@@ -104,6 +104,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Build workspace dependencies
+        # Backend sources import @mercado/api-contracts, which resolves through its
+        # built dist rather than its TypeScript sources.
+        run: pnpm exec turbo run build --filter=@mercado/backend^...
 
       - name: Setup database extensions
         run: |
@@ -181,7 +186,7 @@ jobs:
           DATABASE_URL: postgresql://user:password@localhost:5432/mercado_test
 
       - name: Build application
-        run: pnpm --filter @mercado/backend build
+        run: pnpm exec turbo run build --filter=@mercado/backend
 
       - name: Run smoke test (built server)
         run: pnpm --filter @mercado/backend test:smoke:build
@@ -231,6 +236,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Build workspace dependencies
+        run: pnpm exec turbo run build --filter=@mercado/api-contracts
 
       - name: Install Playwright browsers
         run: pnpm --filter @mercado/web exec playwright install --with-deps chromium
