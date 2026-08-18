@@ -6,7 +6,7 @@ import { createTestProduct } from '../../../../tests/factories/products.js';
 import { createAuthenticatedUser } from '../../../../tests/helpers/auth.js';
 import { buildTestApp } from '../../../app.js';
 import { db, orderItems, orders, products, sessions, users } from '../../../db/index.js';
-import type { Product } from '../../products/domain/product.entity.js';
+import type { Product } from '../../products/index.js';
 
 describe('Checkout Routes', () => {
   let fastify: FastifyInstance;

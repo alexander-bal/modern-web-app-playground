@@ -57,7 +57,7 @@ export class ApiHelper {
   }
 }
 
-export function uniqueEmail(): string {
+function uniqueEmail(): string {
   return `test-${Date.now()}-${Math.random().toString(36).slice(2, 7)}@example.com`;
 }
 

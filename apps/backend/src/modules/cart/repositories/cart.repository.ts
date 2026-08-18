@@ -272,23 +272,3 @@ export async function reassignGuestCart(
     })
     .where(eq(orders.id, orderId));
 }
-
-/**
- * Move items from one cart to another (for merging)
- * @param fromOrderId Source order ID
- * @param toOrderId Destination order ID
- * @param database Database instance
- */
-export async function moveItemsToUserCart(
-  fromOrderId: string,
-  toOrderId: string,
-  database: Database = db
-): Promise<void> {
-  await database
-    .update(orderItems)
-    .set({
-      orderId: toOrderId,
-      updatedAt: sql`now()`,
-    })
-    .where(eq(orderItems.orderId, fromOrderId));
-}

@@ -307,12 +307,3 @@ export class CoreSdk {
     }
   }
 }
-
-/**
- * Factory function to create Core SDK instance
- * @param config - Core SDK configuration
- * @returns CoreSdk instance
- */
-export function createCoreSdk(config?: Partial<CoreSdkConfig>): CoreSdk {
-  return new CoreSdk(config);
-}

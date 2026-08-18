@@ -157,11 +157,7 @@ export async function deleteOrderService(id: string, database: Database = db): P
   return id;
 }
 
-export async function getOrderByOrderNumber(
-  orderNumber: string,
-  userId: string,
-  database: Database = db
-) {
+async function getOrderByOrderNumber(orderNumber: string, userId: string, database: Database = db) {
   const order = await findOrderByOrderNumber(orderNumber, database);
 
   if (!order) {

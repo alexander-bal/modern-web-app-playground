@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Database } from '../../../db/index.js';
 import { db } from '../../../db/index.js';
 import { createModuleLogger } from '../../../lib/logger.js';
-import { findProductById } from '../../products/repositories/products.repository.js';
+import { findProductById } from '../../products/index.js';
 import type { CartIdentifier, CartItem, CartResponse } from '../domain/cart.types.js';
 import {
   createCartOrder,

@@ -4,7 +4,7 @@ import type { Database } from '../../../db/index.js';
 import { db } from '../../../db/index.js';
 import { env } from '../../../lib/env.js';
 import { createModuleLogger } from '../../../lib/logger.js';
-import { mergeGuestCart } from '../../cart/services/cart.service.js';
+import { mergeGuestCart } from '../../cart/index.js';
 import type { LoginInput, RegisterInput, UserProfile } from '../domain/auth.types.js';
 import {
   createSession,

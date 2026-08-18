@@ -28,7 +28,3 @@ export function makeCart(overrides: Partial<CartResponse> = {}): CartResponse {
     ...overrides,
   };
 }
-
-export function makeEmptyCart(): CartResponse {
-  return makeCart({ items: [], subtotal: '0.00', itemCount: 0 });
-}

@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { Database } from '../../../db/index.js';
 import { db, orders } from '../../../db/index.js';
-import type { Order } from '../../orders/domain/order.entity.js';
+import type { Order } from '../../orders/index.js';
 
 /**
  * Find an order by order number

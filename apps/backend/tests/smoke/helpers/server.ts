@@ -88,7 +88,7 @@ export async function startServer(options: ServerOptions): Promise<ServerResult>
 /**
  * Polls the health endpoint until the server responds successfully or timeout
  */
-export async function waitForServer(healthUrl: string, timeoutMs: number): Promise<void> {
+async function waitForServer(healthUrl: string, timeoutMs: number): Promise<void> {
   const startTime = Date.now();
   const pollInterval = 1000; // Check every 1 second
 

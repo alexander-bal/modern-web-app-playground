@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createTestProduct } from '../../../../tests/factories/products.js';
 import { db, orderItems, orders, products } from '../../../db/index.js';
-import type { Product } from '../../products/domain/product.entity.js';
+import type { Product } from '../../products/index.js';
 import {
   addItemToCart,
   CartItemNotFoundError,

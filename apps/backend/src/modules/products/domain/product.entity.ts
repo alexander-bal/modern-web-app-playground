@@ -11,5 +11,3 @@ export type Product = Omit<ProductSchema, 'status'> & {
 export type NewProduct = Omit<NewProductSchema, 'status'> & {
   status?: ProductStatus;
 };
-
-export type UpdateProduct = Partial<Omit<NewProduct, 'id' | 'createdAt'>>;

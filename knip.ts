@@ -18,8 +18,13 @@ const config: KnipConfig = {
     },
 
     'apps/backend': {
-      // Temporal's worker resolves this path as a runtime string, not a static import.
-      entry: ['src/shared/workflows/workflows.ts'],
+      entry: [
+        // Temporal's worker resolves this path as a runtime string, not a static import.
+        'src/shared/workflows/workflows.ts',
+        // Ambient `declare module 'fastify'` augmentation for `request.user`; the compiler
+        // picks it up from the project glob, so no file imports it.
+        'src/infra/auth/auth.types.ts',
+      ],
 
       ignoreDependencies: [
         // pino transport target, referenced by name in src/lib/logger.ts and src/config/server.ts.

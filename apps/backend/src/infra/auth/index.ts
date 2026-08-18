@@ -5,4 +5,3 @@
  */
 
 export { authPlugin } from './auth.plugin.js';
-export type { AuthenticatedUser } from './auth.types.js';

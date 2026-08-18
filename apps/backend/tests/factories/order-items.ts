@@ -5,7 +5,7 @@ import type { NewOrderItem, OrderItem } from '../../src/db/schema.js';
 /**
  * Build test order item data with default values that can be overridden
  */
-export function buildTestOrderItemData(overrides: Partial<NewOrderItem> = {}): NewOrderItem {
+function buildTestOrderItemData(overrides: Partial<NewOrderItem> = {}): NewOrderItem {
   if (!overrides.orderId) {
     throw new Error('orderId is required for order items');
   }
@@ -41,31 +41,4 @@ export async function createTestOrderItem(
   }
 
   return results[0];
-}
-
-/**
- * Create multiple test order item records in the database
- */
-export async function createTestOrderItems(
-  count: number,
-  overrides: Partial<NewOrderItem> = {},
-  database: Database = db
-): Promise<OrderItem[]> {
-  const result: OrderItem[] = [];
-
-  for (let index = 0; index < count; index++) {
-    const itemData = buildTestOrderItemData({
-      ...overrides,
-      productSku: `SKU-${Date.now()}-${index}`,
-    });
-    const results = await database.insert(orderItems).values(itemData).returning();
-
-    if (!results[0]) {
-      throw new Error(`Failed to create test order item ${index + 1}`);
-    }
-
-    result.push(results[0]);
-  }
-
-  return result;
 }

@@ -3,7 +3,7 @@ import { createTestOrderItem } from '../../../../tests/factories/order-items.js'
 import { createTestOrder } from '../../../../tests/factories/orders.js';
 import { createTestProduct } from '../../../../tests/factories/products.js';
 import { db, orderItems, orders, products } from '../../../db/index.js';
-import type { Product } from '../../products/domain/product.entity.js';
+import type { Product } from '../../products/index.js';
 import {
   CartNotFoundError,
   checkout,

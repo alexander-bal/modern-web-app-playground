@@ -33,7 +33,7 @@ export interface SearchProductsQuery {
   limit: number;
 }
 
-export async function listProductsService(
+async function listProductsService(
   query: ListProductsQuery = { page: 1, limit: 20 },
   database: Database = db
 ): Promise<ListProductsResult> {
@@ -64,7 +64,7 @@ export async function listProductsService(
   };
 }
 
-export async function getBySlugService(
+async function getBySlugService(
   slug: string,
   database: Database = db
 ): Promise<Omit<Product, 'costPrice'>> {
@@ -82,7 +82,7 @@ export async function getBySlugService(
   return productWithoutCost;
 }
 
-export async function searchProductsService(
+async function searchProductsService(
   query: SearchProductsQuery,
   database: Database = db
 ): Promise<ListProductsResult> {

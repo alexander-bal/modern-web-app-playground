@@ -5,7 +5,7 @@ import type { NewOrder, Order } from '../../src/modules/orders/domain/order.enti
 /**
  * Build test order data with default values that can be overridden
  */
-export function buildTestOrderData(overrides: Partial<NewOrder> = {}): NewOrder {
+function buildTestOrderData(overrides: Partial<NewOrder> = {}): NewOrder {
   const now = new Date();
   const orderNumber =
     overrides.orderNumber || `ORD-${now.getTime()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -52,32 +52,4 @@ export async function createTestOrder(
 
   // Type assertion needed: Drizzle returns status as string, but we use typed enum
   return results[0] as Order;
-}
-
-/**
- * Create multiple test order records in the database
- */
-export async function createTestOrders(
-  count: number,
-  overrides: Partial<NewOrder> = {},
-  database: Database = db
-): Promise<Order[]> {
-  const result: Order[] = [];
-
-  for (let index = 0; index < count; index++) {
-    const orderData = buildTestOrderData({
-      orderNumber: `ORD-TEST-${Date.now()}-${Math.random().toString(36).slice(2, 7)}-${index}`,
-      ...overrides,
-    });
-    const results = await database.insert(orders).values(orderData).returning();
-
-    if (!results[0]) {
-      throw new Error(`Failed to create test order ${index + 1}`);
-    }
-
-    // Type assertion needed: Drizzle returns status as string, but we use typed enum
-    result.push(results[0] as Order);
-  }
-
-  return result;
 }

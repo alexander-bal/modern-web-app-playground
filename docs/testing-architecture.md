@@ -22,7 +22,7 @@ Smoke tests validate real infrastructure (PostgreSQL, Temporal) against a runnin
 - Use native Node SDKs (Drizzle) instead of CLI tools
 - Separate config: `apps/backend/tests/smoke/vitest.config.smoke.ts`
 
-**Helpers**: `apps/backend/tests/smoke/helpers/` contains utilities for server lifecycle, Temporal client, and database operations.
+**Helpers**: `apps/backend/tests/smoke/helpers/` contains utilities for server lifecycle.
 
 ## MSW Mocking
 

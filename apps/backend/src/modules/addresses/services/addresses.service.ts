@@ -9,7 +9,6 @@ import {
   deleteAddressById,
   findAddressesByUserId,
   findAddressByIdAndUserId,
-  hasDefaultAddress,
   insertAddress,
   updateAddressById,
 } from '../repositories/addresses.repository.js';
@@ -183,5 +182,3 @@ export const addressesService = {
     updateAddressService(id, userId, body),
   delete: (id: string, userId: string) => deleteAddressService(id, userId),
 };
-
-export { hasDefaultAddress, countAddressesByUserId, insertAddress };

@@ -3,7 +3,7 @@ import { initServer } from '@ts-rest/fastify';
 import { tsRestRouterOptions } from '../../../config/server.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { createModuleLogger } from '../../../lib/logger.js';
-import { authService } from '../../auth/services/auth.service.js';
+import { authService } from '../../auth/index.js';
 import type { CartIdentifier } from '../domain/cart.types.js';
 import {
   CartItemNotFoundError,

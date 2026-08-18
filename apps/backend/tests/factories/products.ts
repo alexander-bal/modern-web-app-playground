@@ -5,7 +5,7 @@ import type { NewProduct, Product } from '../../src/modules/products/domain/prod
 /**
  * Build test product data with default values that can be overridden
  */
-export function buildTestProductData(overrides: Partial<NewProduct> = {}): NewProduct {
+function buildTestProductData(overrides: Partial<NewProduct> = {}): NewProduct {
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const name = overrides.name ?? `Test Product ${suffix}`;
   const slug = overrides.slug ?? `test-product-${suffix}`;

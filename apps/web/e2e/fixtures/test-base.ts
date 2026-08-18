@@ -81,4 +81,4 @@ export const test = base.extend<TestFixtures>({
 });
 
 export { expect } from '@playwright/test';
-export { testUser, uniqueEmail, type TestUser } from '../helpers/api-helper.js';
+export { testUser } from '../helpers/api-helper.js';

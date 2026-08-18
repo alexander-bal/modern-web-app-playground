@@ -5,7 +5,7 @@ import { createTestSession } from '../../../../tests/factories/sessions.js';
 import { createTestUser } from '../../../../tests/factories/users.js';
 import { buildTestApp } from '../../../app.js';
 import { db, orderItems, orders, products, sessions, users } from '../../../db/index.js';
-import { addItemToCart } from '../../cart/services/cart.service.js';
+import { addItemToCart } from '../../cart/index.js';
 
 describe('Auth Routes Integration', () => {
   let app: Awaited<ReturnType<typeof buildTestApp>>;

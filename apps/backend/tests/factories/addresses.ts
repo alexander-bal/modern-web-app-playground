@@ -2,7 +2,7 @@ import type { Database } from '../../src/db/index.js';
 import { addresses, db } from '../../src/db/index.js';
 import type { Address, NewAddress } from '../../src/db/schema.js';
 
-export function buildTestAddressData(overrides: Partial<NewAddress> = {}): NewAddress {
+function buildTestAddressData(overrides: Partial<NewAddress> = {}): NewAddress {
   return {
     userId: overrides.userId ?? '00000000-0000-0000-0000-000000000001',
     fullName: overrides.fullName ?? 'Test User',

@@ -2,18 +2,14 @@ import { eq, like, sql } from 'drizzle-orm';
 import type { Database } from '../../../db/index.js';
 import { db, orders } from '../../../db/index.js';
 import { createModuleLogger } from '../../../lib/logger.js';
-import {
-  findCartByToken,
-  findCartItems,
-  findOrderByUserId,
-} from '../../cart/repositories/cart.repository.js';
-import { findProductById } from '../../products/repositories/products.repository.js';
+import { findCartByToken, findCartItems, findOrderByUserId } from '../../cart/index.js';
+import { findProductById } from '../../products/index.js';
 import {
   countAddressesByUserId,
   findAddressByIdAndUserId,
   hasDefaultAddress,
   insertAddress,
-} from '../../addresses/repositories/addresses.repository.js';
+} from '../../addresses/index.js';
 import type { Address, CheckoutRequest } from '../domain/checkout.types.js';
 
 const logger = createModuleLogger('checkout');
