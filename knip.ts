@@ -9,6 +9,14 @@ const config: KnipConfig = {
   tags: ['-lintignore'],
 
   workspaces: {
+    '.': {
+      ignoreDependencies: [
+        // Supplies the playwright CLI at the root for `pnpm exec playwright install`;
+        // the test runner itself is @playwright/test in apps/web.
+        'playwright',
+      ],
+    },
+
     'apps/backend': {
       // Temporal's worker resolves this path as a runtime string, not a static import.
       entry: ['src/shared/workflows/workflows.ts'],
