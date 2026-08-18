@@ -27,3 +27,9 @@ pnpm test || {
   echo "❌ Unit tests failed. Fix the failing tests before pushing."
   exit 1
 }
+
+echo "Checking spelling..."
+pnpm spell || {
+  echo "❌ Spell check failed. Fix the errors or run 'pnpm spell:fix' before pushing."
+  exit 1
+}
