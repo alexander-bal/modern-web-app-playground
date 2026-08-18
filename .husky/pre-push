@@ -34,6 +34,14 @@ pnpm lint || {
   exit 1
 }
 
+echo "Auditing dependencies..."
+# --ignore-registry-errors keeps a registry outage from failing the push as if it had found
+# vulnerabilities; the audit in ci.yml stays strict and is the authoritative gate.
+pnpm audit --audit-level moderate --ignore-registry-errors || {
+  echo "❌ Vulnerable dependencies found. Upgrade them, or record an accepted advisory under 'audit.ignore' in pnpm-workspace.yaml."
+  exit 1
+}
+
 echo "Building all packages..."
 pnpm build || {
   echo "❌ Build failed. Fix the errors or run 'pnpm build' to reproduce."
