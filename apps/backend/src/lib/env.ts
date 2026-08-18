@@ -1,9 +1,12 @@
 import { createEnv } from '@t3-oss/env-core';
-import { config } from 'dotenv';
 import { z } from 'zod';
 
-// Load environment variables from .env file (optional in dev/test)
-config();
+try {
+  process.loadEnvFile();
+} catch {
+  // .env is optional: devDefault() covers dev/test, deployed environments inject real values.
+  // Node reports a missing and an unreadable .env alike as ENOENT, so narrowing buys nothing.
+}
 
 // Check if we're in a development-like environment
 const isDev = () => {

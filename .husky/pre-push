@@ -13,9 +13,9 @@ export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin"
 command -v corepack >/dev/null 2>&1 && corepack enable 2>/dev/null
 
 echo "Applying test database migrations..."
-# DATABASE_URL is forced here because dotenv (loaded by drizzle.config.ts) takes
-# precedence over the NODE_ENV=test default, so a dev .env would otherwise send
-# these migrations to the dev database instead of the test one.
+# DATABASE_URL is forced here because a dev .env (loaded by drizzle.config.ts) takes
+# precedence over the NODE_ENV=test default, so it would otherwise send these
+# migrations to the dev database instead of the test one.
 DATABASE_URL="postgresql://user:password@localhost:5432/mercado_test" \
   pnpm --filter @mercado/backend db:migrate:test || {
   echo "❌ Test database migration failed. Fix the migration before pushing."

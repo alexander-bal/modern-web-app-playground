@@ -98,7 +98,6 @@
     "@ts-rest/fastify": "^3.52.1",
     "@ts-rest/open-api": "^3.52.1",
     "argon2": "^0.44.0",
-    "dotenv": "^17.2.3",
     "drizzle-orm": "^0.44.7",
     "fastify": "^5.6.2",
     "fastify-plugin": "^5.1.0",

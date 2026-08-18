@@ -1,8 +1,11 @@
-import { config } from 'dotenv';
 import { defineConfig } from 'drizzle-kit';
 
-// Load environment variables
-config();
+try {
+  process.loadEnvFile();
+} catch {
+  // .env is optional: getDefaultDatabaseUrl() covers dev/test.
+  // Node reports a missing and an unreadable .env alike as ENOENT, so narrowing buys nothing.
+}
 
 // Use appropriate default DATABASE_URL based on NODE_ENV
 const getDefaultDatabaseUrl = () => {
