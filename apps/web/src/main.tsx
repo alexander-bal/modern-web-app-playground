@@ -20,24 +20,33 @@ const queryClient = new QueryClient({
   },
 });
 
-const rootElement = document.getElementById('root');
-if (!rootElement) {
-  throw new Error('Root element not found');
+async function bootstrap() {
+  const rootElement = document.getElementById('root');
+  if (!rootElement) {
+    throw new Error('Root element not found');
+  }
+
+  if (import.meta.env.VITE_API_MOCKING === 'enabled') {
+    const { initMocks } = await import('./mocks/init');
+    await initMocks();
+  }
+
+  createRoot(rootElement).render(
+    <StrictMode>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <QueryClientProvider client={queryClient}>
+          <tsr.ReactQueryProvider>
+            <AuthProvider>
+              <CartProvider>
+                <RouterProvider router={router} />
+              </CartProvider>
+            </AuthProvider>
+          </tsr.ReactQueryProvider>
+        </QueryClientProvider>
+      </ThemeProvider>
+    </StrictMode>
+  );
 }
 
-createRoot(rootElement).render(
-  <StrictMode>
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <QueryClientProvider client={queryClient}>
-        <tsr.ReactQueryProvider>
-          <AuthProvider>
-            <CartProvider>
-              <RouterProvider router={router} />
-            </CartProvider>
-          </AuthProvider>
-        </tsr.ReactQueryProvider>
-      </QueryClientProvider>
-    </ThemeProvider>
-  </StrictMode>
-);
+void bootstrap();

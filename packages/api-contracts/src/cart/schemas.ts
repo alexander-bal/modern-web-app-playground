@@ -41,3 +41,5 @@ export const successResponseSchema = z.object({
 export type AddItemInput = z.infer<typeof addItemSchema>;
 export type UpdateItemInput = z.infer<typeof updateItemSchema>;
 export type MergeCartInput = z.infer<typeof mergeCartSchema>;
+export type CartItem = z.infer<typeof cartItemSchema>;
+export type CartResponse = z.infer<typeof cartResponseSchema>;

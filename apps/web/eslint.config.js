@@ -15,10 +15,10 @@ const unusedVarsRule = {
 };
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', 'public/mockServiceWorker.js']),
   {
     files: ['**/*.{ts,tsx}'],
-    ignores: ['e2e/**'],
+    ignores: ['e2e/**', 'tests-integration/**'],
     extends: [
       js.configs.recommended,
       tseslint.configs.recommended,
@@ -32,7 +32,7 @@ export default defineConfig([
     rules: unusedVarsRule,
   },
   {
-    files: ['e2e/**/*.ts'],
+    files: ['e2e/**/*.ts', 'tests-integration/**/*.ts'],
     extends: [js.configs.recommended, tseslint.configs.recommended],
     languageOptions: {
       ecmaVersion: 2020,

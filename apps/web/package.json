@@ -20,7 +20,11 @@
     "preview": "vite preview",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:report": "playwright show-report",
+    "test:integration": "playwright test --config=playwright-integration.config.ts",
+    "test:integration:ui": "playwright test --config=playwright-integration.config.ts --ui",
+    "test:integration:report": "playwright show-report tests-integration/playwright-report",
+    "msw:init": "msw init public --save"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -47,9 +51,15 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "msw": "^2.15.0",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:",
     "typescript7": "catalog:",
     "vite": "^7.3.1"
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
   }
 }
