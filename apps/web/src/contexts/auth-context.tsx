@@ -1,7 +1,8 @@
 import type { UserProfile } from '@mercado/api-contracts';
+import { useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { api } from '../lib/api-client';
+import { createContext, useCallback, useContext } from 'react';
+import { api, tsr } from '../lib/api-client';
 import { useCart } from './cart-context';
 
 interface AuthContextValue {
@@ -12,6 +13,8 @@ interface AuthContextValue {
   logout: () => Promise<void>;
 }
 
+const AUTH_ME_KEY = ['auth', 'me'];
+
 const AuthContext = createContext<AuthContextValue>({
   user: null,
   loading: true,
@@ -21,31 +24,20 @@ const AuthContext = createContext<AuthContextValue>({
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const { invalidateCart } = useCart();
 
-  const checkAuth = useCallback(async () => {
-    try {
-      const response = await api.auth.me();
+  const { data, isPending } = tsr.auth.me.useQuery({
+    queryKey: AUTH_ME_KEY,
+    // An anonymous visitor gets 401, which this client throws; retrying it would double
+    // every cold page load and hold the auth gate on a spinner through the backoff.
+    retry: false,
+    // A 401 keeps the last successful data, so a focus refetch could not surface an
+    // expired session anyway.
+    refetchOnWindowFocus: false,
+  });
 
-      if (response.status === 200) {
-        setUser(response.body);
-      } else {
-        setUser(null);
-      }
-    } catch {
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    // setState runs after `await api.auth.me()` resolves, not synchronously in the effect body
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void checkAuth();
-  }, [checkAuth]);
+  const user = data?.status === 200 ? data.body : null;
 
   const login = useCallback(
     async (email: string, password: string) => {
@@ -54,13 +46,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (response.status === 200) {
-        setUser(response.body);
+        // Cancel first: invalidate only cancels a refetch of a query that already holds data,
+        // so an anonymous /me still in flight from mount would instead be awaited and its 401
+        // would decide the session. The response already carries the profile, so seed the cache
+        // with it rather than depend on another /me that could fail and strand a live session.
+        await queryClient.cancelQueries({ queryKey: AUTH_ME_KEY });
+        queryClient.setQueryData(AUTH_ME_KEY, response);
         invalidateCart();
       } else {
         throw new Error('Invalid email or password');
       }
     },
-    [invalidateCart]
+    [queryClient, invalidateCart]
   );
 
   const register = useCallback(
@@ -70,7 +67,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (response.status === 201) {
-        setUser(response.body);
+        await queryClient.cancelQueries({ queryKey: AUTH_ME_KEY });
+        // Register answers 201 where the session check answers 200; the profile body is the same.
+        queryClient.setQueryData(AUTH_ME_KEY, { ...response, status: 200 as const });
         invalidateCart();
       } else if (response.status === 409) {
         throw new Error(response.body.error);
@@ -78,17 +77,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('Registration failed');
       }
     },
-    [invalidateCart]
+    [queryClient, invalidateCart]
   );
 
   const logout = useCallback(async () => {
     await api.auth.logout({ body: {} });
-    setUser(null);
+    // Reset, not refetch: a query that errors keeps its last successful data, so refetching
+    // into the 401 would leave the signed-out user still reading as signed in. Reset clears the
+    // data and notifies subscribers, which `removeQueries` does not do for an active query.
+    await queryClient.resetQueries({ queryKey: AUTH_ME_KEY });
     invalidateCart();
-  }, [invalidateCart]);
+  }, [queryClient, invalidateCart]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading: isPending, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );
