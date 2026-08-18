@@ -1,8 +1,10 @@
 version: 2
 updates:
+  # Version updates are off: open-pull-requests-limit 0 is GitHub's documented switch
+  # for disabling them per ecosystem. Security updates are exempt from this limit and
+  # still open pull requests. Drop the limit line to re-enable version updates.
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "daily"
-
-
+    open-pull-requests-limit: 0
