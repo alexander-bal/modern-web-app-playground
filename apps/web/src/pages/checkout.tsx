@@ -140,39 +140,25 @@ export function CheckoutPage() {
 
   const checkoutMutation = tsr.checkout.checkout.useMutation({
     onSuccess: (response) => {
-      if (response.status === 200) {
-        queryClient.invalidateQueries({ queryKey: ['cart'] });
-        queryClient.invalidateQueries({ queryKey: ['orders'] });
-        queryClient.invalidateQueries({ queryKey: ['addresses'] });
-        navigate(`/orders/${response.body.orderNumber}/confirmation`);
-      } else if (response.status === 400) {
-        const errorBody = response.body as {
-          error?: string;
-          issues?: Array<{ path: string[]; message: string }>;
-        };
-        if (errorBody.issues && Array.isArray(errorBody.issues)) {
-          const fieldErrorsMap: Record<string, string> = {};
-          for (const issue of errorBody.issues) {
-            const path = issue.path.join('.');
-            fieldErrorsMap[path] = issue.message;
-          }
-          setFieldErrors(fieldErrorsMap);
-          setError('Please fix the validation errors below.');
-        } else {
-          setError(errorBody.error || 'Invalid request. Please check your input.');
-        }
-      } else if (response.status === 422) {
-        setError(response.body.error);
-      } else if (response.status === 404) {
+      queryClient.invalidateQueries({ queryKey: ['cart'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      queryClient.invalidateQueries({ queryKey: ['addresses'] });
+      navigate(`/orders/${response.body.orderNumber}/confirmation`);
+    },
+    onError: (err) => {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else if (err.status === 400) {
+        setError(err.body.error || 'Invalid request. Please check your input.');
+      } else if (err.status === 422) {
+        setError(err.body.error);
+      } else if (err.status === 404) {
         setError('Cart not found. Please add items to your cart.');
-      } else if (response.status === 401) {
+      } else if (err.status === 401) {
         setError('Please log in to complete your order.');
       } else {
         setError('Failed to place order. Please try again.');
       }
-    },
-    onError: (err) => {
-      setError(err instanceof Error ? err.message : 'An error occurred');
     },
   });
 

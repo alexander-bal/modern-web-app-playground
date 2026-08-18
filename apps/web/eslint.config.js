@@ -5,6 +5,15 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+// Bindings prefixed with `_` are deliberately unused — Playwright fixtures are often
+// destructured only for their setup side effect.
+const unusedVarsRule = {
+  '@typescript-eslint/no-unused-vars': [
+    'error',
+    { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+  ],
+};
+
 export default defineConfig([
   globalIgnores(['dist']),
   {
@@ -20,6 +29,7 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: unusedVarsRule,
   },
   {
     files: ['e2e/**/*.ts'],
@@ -28,5 +38,6 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.node,
     },
+    rules: unusedVarsRule,
   },
 ]);

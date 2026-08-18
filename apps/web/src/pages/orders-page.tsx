@@ -7,17 +7,17 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
-import type { ChipPropsColorOverrides } from '@mui/material/Chip';
+import type { ChipProps } from '@mui/material/Chip';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Container from '@mui/material/Container';
 import Divider from '@mui/material/Divider';
 import Typography from '@mui/material/Typography';
-import type { OverridableStringUnion } from '@mui/types';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import noPhoto from '../assets/no-photo.svg';
 import { tsr } from '../lib/api-client';
+import { parseAddress } from '../lib/parse-address';
 
 type OrderStatus =
   | 'draft'
@@ -65,12 +65,7 @@ export function OrdersPage() {
     });
   };
 
-  const getStatusColor = (
-    status: OrderStatus
-  ): OverridableStringUnion<
-    'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning',
-    ChipPropsColorOverrides
-  > => {
+  const getStatusColor = (status: OrderStatus): ChipProps['color'] => {
     switch (status) {
       case 'draft':
         return 'default';
@@ -93,15 +88,6 @@ export function OrdersPage() {
 
   const handleAccordionChange = (orderId: string) => {
     setExpandedOrderId((prev) => (prev === orderId ? null : orderId));
-  };
-
-  const parseAddress = (addressJson: string | null) => {
-    if (!addressJson) return null;
-    try {
-      return JSON.parse(addressJson);
-    } catch {
-      return null;
-    }
   };
 
   if (isPending) {

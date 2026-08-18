@@ -1,4 +1,4 @@
-import { RequestValidationError } from '@ts-rest/fastify';
+import type { RequestValidationError } from '@ts-rest/fastify';
 import type { FastifyReply, FastifyRequest, FastifyServerOptions } from 'fastify';
 import { fromError } from 'zod-validation-error';
 import { env } from '../lib/env.js';

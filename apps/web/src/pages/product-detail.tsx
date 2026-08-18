@@ -38,16 +38,15 @@ export function ProductDetailPage() {
   });
 
   const product = data?.status === 200 ? data.body : null;
-  const error =
-    queryError instanceof Error
+  const error = !slug
+    ? 'Product slug is missing'
+    : queryError instanceof Error
       ? queryError.message
-      : !slug
-        ? 'Product slug is missing'
-        : data?.status === 404
+      : queryError
+        ? queryError.status === 404
           ? 'Product not found'
-          : data && data.status !== 200
-            ? 'Failed to fetch product'
-            : null;
+          : 'Failed to fetch product'
+        : null;
 
   const addToCartMutation = tsr.cart.addItem.useMutation({
     onSuccess: () => {

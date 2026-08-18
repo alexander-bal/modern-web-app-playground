@@ -144,7 +144,7 @@ export function AddressesPage() {
   };
 
   const handleDelete = (id: string) => {
-    deleteMutation.mutate({ params: { id }, body: undefined });
+    deleteMutation.mutate({ params: { id } });
   };
 
   const handleCancel = () => {

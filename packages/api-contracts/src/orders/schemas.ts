@@ -142,6 +142,7 @@ export const orderResponseSchema = z.object({
   shippingAddress: z.string().nullable(),
   billingAddress: z.string().nullable(),
   paymentTerms: z.string().nullable(),
+  paymentTransactionId: z.string().nullable(),
   notes: z.string().nullable(),
   customerNotes: z.string().nullable(),
 });

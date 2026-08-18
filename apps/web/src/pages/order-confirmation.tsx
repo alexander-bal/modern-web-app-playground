@@ -13,6 +13,7 @@ import Typography from '@mui/material/Typography';
 import { Link, useParams } from 'react-router-dom';
 import noPhoto from '../assets/no-photo.svg';
 import { tsr } from '../lib/api-client';
+import { parseAddress } from '../lib/parse-address';
 
 export function OrderConfirmationPage() {
   const { orderNumber } = useParams<{ orderNumber: string }>();
@@ -30,16 +31,17 @@ export function OrderConfirmationPage() {
   });
 
   const order = data?.status === 200 ? data.body : null;
-  const error =
-    queryError instanceof Error
+  const shippingAddress = parseAddress(order?.shippingAddress);
+  const billingAddress = parseAddress(order?.billingAddress);
+  const error = !orderNumber
+    ? 'Order number is missing'
+    : queryError instanceof Error
       ? queryError.message
-      : !orderNumber
-        ? 'Order number is missing'
-        : data?.status === 404
+      : queryError
+        ? queryError.status === 404
           ? 'Order not found'
-          : data && data.status !== 200
-            ? 'Failed to fetch order'
-            : null;
+          : 'Failed to fetch order'
+        : null;
 
   const formatPrice = (price: string, currency: string) => {
     const numericPrice = Number.parseFloat(price);
@@ -138,45 +140,47 @@ export function OrderConfirmationPage() {
         <Divider sx={{ my: 2 }} />
 
         <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3, mb: 3 }}>
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Shipping Address
-            </Typography>
-            <Typography variant="body2">{order.shippingAddress.fullName}</Typography>
-            <Typography variant="body2">{order.shippingAddress.addressLine1}</Typography>
-            {order.shippingAddress.addressLine2 && (
-              <Typography variant="body2">{order.shippingAddress.addressLine2}</Typography>
-            )}
-            <Typography variant="body2">
-              {order.shippingAddress.city}
-              {order.shippingAddress.state && `, ${order.shippingAddress.state}`}{' '}
-              {order.shippingAddress.postalCode}
-            </Typography>
-            <Typography variant="body2">{order.shippingAddress.countryCode}</Typography>
-            {order.shippingAddress.phone && (
-              <Typography variant="body2">{order.shippingAddress.phone}</Typography>
-            )}
-          </Box>
+          {shippingAddress && (
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                Shipping Address
+              </Typography>
+              <Typography variant="body2">{shippingAddress.fullName}</Typography>
+              <Typography variant="body2">{shippingAddress.addressLine1}</Typography>
+              {shippingAddress.addressLine2 && (
+                <Typography variant="body2">{shippingAddress.addressLine2}</Typography>
+              )}
+              <Typography variant="body2">
+                {shippingAddress.city}
+                {shippingAddress.state && `, ${shippingAddress.state}`} {shippingAddress.postalCode}
+              </Typography>
+              <Typography variant="body2">{shippingAddress.countryCode}</Typography>
+              {shippingAddress.phone && (
+                <Typography variant="body2">{shippingAddress.phone}</Typography>
+              )}
+            </Box>
+          )}
 
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Billing Address
-            </Typography>
-            <Typography variant="body2">{order.billingAddress.fullName}</Typography>
-            <Typography variant="body2">{order.billingAddress.addressLine1}</Typography>
-            {order.billingAddress.addressLine2 && (
-              <Typography variant="body2">{order.billingAddress.addressLine2}</Typography>
-            )}
-            <Typography variant="body2">
-              {order.billingAddress.city}
-              {order.billingAddress.state && `, ${order.billingAddress.state}`}{' '}
-              {order.billingAddress.postalCode}
-            </Typography>
-            <Typography variant="body2">{order.billingAddress.countryCode}</Typography>
-            {order.billingAddress.phone && (
-              <Typography variant="body2">{order.billingAddress.phone}</Typography>
-            )}
-          </Box>
+          {billingAddress && (
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                Billing Address
+              </Typography>
+              <Typography variant="body2">{billingAddress.fullName}</Typography>
+              <Typography variant="body2">{billingAddress.addressLine1}</Typography>
+              {billingAddress.addressLine2 && (
+                <Typography variant="body2">{billingAddress.addressLine2}</Typography>
+              )}
+              <Typography variant="body2">
+                {billingAddress.city}
+                {billingAddress.state && `, ${billingAddress.state}`} {billingAddress.postalCode}
+              </Typography>
+              <Typography variant="body2">{billingAddress.countryCode}</Typography>
+              {billingAddress.phone && (
+                <Typography variant="body2">{billingAddress.phone}</Typography>
+              )}
+            </Box>
+          )}
         </Box>
 
         <Divider sx={{ my: 2 }} />
