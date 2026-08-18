@@ -4,7 +4,7 @@
 
 E-commerce system with backend API and React frontend. Integrates with Core microservice.
 
-**Stack**: Node.js 22+, TypeScript, Fastify, PostgreSQL, Temporal, ts-rest, Drizzle ORM, Vitest, React, Vite.
+**Stack**: Node.js 24+, TypeScript, Fastify, PostgreSQL, Temporal, ts-rest, Drizzle ORM, Vitest, React, Vite.
 
 For testing strategy, see [Testing Architecture](./testing-architecture.md).
 

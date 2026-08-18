@@ -8,7 +8,7 @@ _Use this README to set up the complete development and test environment. Execut
 
 ## Stack
 
-- **Backend**: Node.js 22+, TypeScript, Fastify 5, ts-rest (type-safe APIs), Drizzle ORM
+- **Backend**: Node.js 24+, TypeScript, Fastify 5, ts-rest (type-safe APIs), Drizzle ORM
 - **Frontend**: React, Vite
 - **Database**: PostgreSQL (Docker), Temporal (workflow orchestration)
 - **Testing**: Vitest, Playwright (E2E)
@@ -16,7 +16,7 @@ _Use this README to set up the complete development and test environment. Execut
 
 ## Prerequisites
 
-- Node.js 22+ (see `.nvmrc`)
+- Node.js 24+ (see `.nvmrc`)
 - Docker & Docker Compose
 - pnpm (via corepack: `corepack enable`)
 - Temporal CLI (for workflows)

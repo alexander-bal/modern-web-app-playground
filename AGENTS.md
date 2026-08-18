@@ -13,7 +13,7 @@ This project uses a **pnpm workspace monorepo** with **Turborepo** for task orch
 
 ## Project Stack
 
-Node.js 22+, TypeScript, Fastify, PostgreSQL, Temporal workflows, ts-rest (type-safe APIs), Drizzle ORM, Vitest, Vite, React.
+Node.js 24+, TypeScript, Fastify, PostgreSQL, Temporal workflows, ts-rest (type-safe APIs), Drizzle ORM, Vitest, Vite, React.
 
 ## Commands
 
