@@ -264,7 +264,7 @@ The `turbo` binary is the only new dependency. No runtime dependencies are added
 
 2. **Create `turbo.json`.** Add the configuration shown in the Decision section. Run `turbo run build` and verify it builds `@mercado/api-contracts` before `@mercado/backend` without manual sequencing.
 
-3. **Update root `package.json` scripts.** Replace these scripts with `turbo run` equivalents: `build`, `lint`, `typecheck`, `test`, `test:coverage`, `type-coverage`. Keep single-target pass-through scripts unchanged — these SHALL remain as `pnpm --filter`: `db:*`, `dev`, `dev:web`, `start`, `test:smoke`, `test:e2e`, `knip`, `openapi:*`. Run all modified scripts to verify behavior matches.
+3. **Update root `package.json` scripts.** Replace these scripts with `turbo run` equivalents: `build`, `lint`, `typecheck`, `test`, `test:coverage`, `type-coverage`. Keep single-target pass-through scripts unchanged — these SHALL remain as `pnpm --filter`: `db:*`, `dev`, `dev:web`, `start`, `test:smoke`, `test:e2e`, `openapi:*`. Run all modified scripts to verify behavior matches.
 
 4. **Update CI workflow.** Add `actions/cache` for `.turbo` directory. Replace direct `pnpm --filter` calls with `turbo run` where task caching applies. Keep database-dependent jobs (`tests`, `smoke-test`, `e2e`) using direct `pnpm --filter` for side-effectful tasks.
 
