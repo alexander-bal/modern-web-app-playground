@@ -45,11 +45,14 @@ describe('Auth Service', () => {
       expect(result.sessionToken).toBeDefined();
       expect(result.sessionToken).toHaveLength(64);
 
-      const usersInDb = await db.select().from(users);
+      const usersInDb = await db.select().from(users).where(eq(users.id, result.user.id));
       expect(usersInDb).toHaveLength(1);
       expect(usersInDb[0]?.email).toBe('john@example.com');
 
-      const sessionsInDb = await db.select().from(sessions);
+      const sessionsInDb = await db
+        .select()
+        .from(sessions)
+        .where(eq(sessions.userId, result.user.id));
       expect(sessionsInDb).toHaveLength(1);
       expect(sessionsInDb[0]?.token).toBe(result.sessionToken);
     });
@@ -77,7 +80,7 @@ describe('Auth Service', () => {
 
       await register(input, db);
 
-      const usersInDb = await db.select().from(users);
+      const usersInDb = await db.select().from(users).where(eq(users.email, input.email));
       const storedHash = usersInDb[0]?.password;
 
       expect(storedHash).toBeDefined();
@@ -120,7 +123,10 @@ describe('Auth Service', () => {
       expect(result.sessionToken).toHaveLength(64);
       expect(result.cartMerged).toBe(false);
 
-      const sessionsInDb = await db.select().from(sessions);
+      const sessionsInDb = await db
+        .select()
+        .from(sessions)
+        .where(eq(sessions.userId, result.user.id));
       expect(sessionsInDb).toHaveLength(1);
     });
 
@@ -175,7 +181,10 @@ describe('Auth Service', () => {
 
       await logout(loginResult.sessionToken, db);
 
-      const sessionsInDb = await db.select().from(sessions);
+      const sessionsInDb = await db
+        .select()
+        .from(sessions)
+        .where(eq(sessions.token, loginResult.sessionToken));
       expect(sessionsInDb).toHaveLength(0);
     });
 
@@ -235,7 +244,7 @@ describe('Auth Service', () => {
         email: testEmail,
       });
 
-      const sessionsInDb = await db.select().from(sessions);
+      const sessionsInDb = await db.select().from(sessions).where(eq(sessions.token, sessionToken));
       expect(sessionsInDb).toHaveLength(1);
       expect(sessionsInDb[0]?.lastUsedAt).toBeDefined();
     });
