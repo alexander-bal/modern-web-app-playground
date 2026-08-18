@@ -7,7 +7,7 @@
 - **Location**: `apps/web/e2e/`
 - **Config**: `apps/web/playwright.config.ts`
 - **Run**: `pnpm --filter web e2e` (local), CI via GitHub Actions
-- **Feature specs**: `docs/specs/` (7 specs: auth, cart, cart-on-list-page, cart-sidebar, checkout, my-orders, search)
+- **Feature specs**: `docs/specs/` (9 specs: auth, cart, checkout, internal-authentication, orders, payment-webhooks, product-search, products, saved-addresses)
 
 ## Structure
 
@@ -85,8 +85,7 @@ apps/web/e2e/
 - Checkout flow (address, order placement, confirmation) — zero tests despite `docs/specs/checkout.md`
 - All tests run as guest — no authenticated user flows
 - Guest-to-authenticated cart merge (described in `docs/specs/cart.md`)
-- Cart sidebar (`docs/specs/cart-sidebar.md`)
-- Cart on list page / quick add-to-cart (`docs/specs/cart-on-list-page.md`)
+- Cart sidebar and quick add-to-cart from the product list (`docs/specs/cart.md` FR-9, FR-10)
 - Order history with actual orders (only empty state tested)
 
 #### 2. Selector Resilience — 8.0

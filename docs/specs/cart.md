@@ -2,281 +2,188 @@
 
 ## Overview
 
-The cart feature enables customers to browse the product catalog and collect items before purchasing. A cart is modeled as an order in `cart` status, reusing the existing orders infrastructure and allowing a natural transition to checkout (a future feature).
+A cart holds the products a customer has selected before they buy. It is modeled as an order in `cart` status carrying line items, so that checkout converts the cart into the placed order rather than copying it. Both guests and authenticated customers keep a persistent, server-held cart: a guest cart is identified by a `cart_token` cookie the server issues, an authenticated customer's cart is identified by their session. When a guest signs in, their guest cart merges into their account's cart automatically.
 
-Both guest and authenticated users can manage carts. Guests receive a server-generated cart token to identify their session. When a guest later authenticates, their guest cart can be merged into their user account's cart.
+Each line item snapshots the product's name, SKU, image, and unit price at the moment it is added, so the price a customer sees when they add an item is the price they carry to checkout regardless of later catalog edits. The customer reaches the cart through three surfaces: a dedicated cart page with full quantity control, a sidebar visible while browsing the catalog, and inline quantity controls on each product card.
 
-The feature introduces an `order items` table to track individual line items — designed as a general-purpose table reusable by orders and checkout later. Product prices are locked at the time an item is added to the cart, ensuring price consistency for the customer.
+This specification covers cart identity and ownership, the line-item contract, the guest token lifecycle and merge, cart totals, and the three customer surfaces. The order entity and its status vocabulary are owned by `orders.md`; the product entity is owned by `products.md`; session authentication and the login request that triggers the merge are owned by `auth.md`; converting a cart into a confirmed order is owned by `checkout.md`.
 
-A Cart page on the web application provides the user-facing interface for viewing, updating, and removing items.
+This document states the required external contract; where the running system diverges from a stated requirement, the system is at fault, not this document.
 
 ## Goals and Non-Goals
 
 ### Goals
 
-- Allow guests and authenticated users to add products to a persistent, database-backed cart
-- Provide API endpoints for full cart lifecycle (add, view, update quantity, remove items)
-- Introduce a general-purpose order items table
-- Deliver a Cart page in the web application with quantity controls, item removal, and price totals
-- Support merging a guest cart into an authenticated user's cart
+- Define cart identity for guests and authenticated customers, and the precedence between the two
+- Define the line-item contract: what a line item snapshots, and what makes two additions the same line
+- Define the guest cart token lifecycle — issue, refresh, expiry — and the automatic merge on sign-in
+- Define cart totals and the price-locking guarantee
+- Define the three customer surfaces and the optimistic-update contract they share
+- Define the currency, quantity, and lifetime limits the cart enforces
 
 ### Non-Goals
 
-- Checkout flow (payment, order confirmation) — will be specced separately
-- Inventory or stock enforcement
-- Multi-currency carts (mixed currencies within a single cart)
-- Coupon, discount, or promotion logic
-- Saved/wishlisted items
-- Cart sharing or collaborative carts
+- Converting a cart into a placed order (`checkout.md`)
+- Inventory and stock enforcement — a customer may add any quantity of an active product
+- Multi-currency carts — a single cart holds a single currency
+- Coupons, discounts, and promotion logic
+- Saved items, wishlists, and cart sharing between customers
+- Quantity controls inside the cart sidebar — the sidebar is a read-only summary
+- Cart controls on the search results surface
 
 ## Functional Requirements
 
-### FR-1: Cart Creation
+### FR-1: Cart Identity and Ownership
 
-- The system SHALL create a cart (order with `cart` status) automatically when a user adds their first item.
-- The system SHALL generate a unique cart token (UUID v4) for guest carts and return it in the response.
-- The system SHALL associate the cart with the authenticated user's ID when a bearer token is provided.
-- The system SHALL NOT require authentication to create or manage a cart.
+- A cart SHALL be an order in `cart` status (`orders.md` FR-2) owned by exactly one of an authenticated customer or a guest cart token.
+- The system SHALL create a cart implicitly when the first item is added; there SHALL be no separate cart-creation call.
+- Cart operations SHALL NOT require authentication.
+- When a request carries both a session and a `cart_token` cookie, the session SHALL take precedence and the request SHALL act on the authenticated customer's cart.
+- Cart routes SHALL be reachable by unauthenticated callers by construction, not as a side effect of route ordering.
 
-### FR-2: Add Item to Cart
+### FR-2: Guest Cart Token and Lifetime
 
-- The system SHALL accept a product ID and quantity when adding an item.
-- The system SHALL validate that the product exists and has `active` status.
-- The system SHALL reject items from products whose currency differs from the cart's currency.
-- The system SHALL set the cart's currency from the first item added if the cart has no currency yet.
-- The system SHALL lock the unit price to the product's current price at the time of addition.
-- The system SHALL snapshot the product name and SKU at the time of addition.
-- If the product already exists in the cart, the system SHALL update the quantity (add to existing) rather than create a duplicate row.
-- The quantity SHALL be a positive integer, minimum 1.
+- On creating a guest cart, the system SHALL issue a cart token and set it as the `cart_token` cookie on the response, so the browser returns it automatically on every later cart request (LIM-6, CON-4).
+- The client SHALL NOT be required to read, store, or attach the cart token itself.
+- A guest cart SHALL expire after a rolling lifetime measured from its last modification, and every modification SHALL refresh both the cart's expiry and the cookie's (LIM-4).
+- An expired cart SHALL be treated as though it does not exist.
+- A `cart_token` that matches no live cart SHALL be reported as not found rather than silently replaced with a new empty cart.
 
-### FR-3: View Cart
+### FR-3: Adding an Item
 
-- The system SHALL return the cart with all its items, including: product ID, product name, SKU, unit price, quantity, line total (unit price × quantity), and product image URL.
-- The system SHALL return cart-level totals: subtotal (sum of all line totals) and item count.
-- The system SHALL return an empty cart representation (zero items, zero totals) when no cart exists, rather than an error.
+- The system SHALL accept `POST /api/cart/items` carrying a product identifier and a quantity.
+- The system SHALL reject an item whose product does not exist or is not `active` (`products.md` FR-2).
+- The first item added SHALL set the cart's currency; a later item whose product currency differs SHALL be rejected (LIM-2).
+- Adding SHALL snapshot the product's name, SKU, image reference, and current unit price onto the line item; the snapshot SHALL NOT change when the product is later edited (LIM-5).
+- Adding a product already in the cart SHALL increase the existing line item's quantity rather than create a second line for the same product (LIM-3).
+- The quantity SHALL be a positive integer (LIM-1).
 
-### FR-4: Update Item Quantity
+### FR-4: Viewing the Cart
 
-- The system SHALL allow updating the quantity of an existing cart item.
-- The quantity SHALL be a positive integer, minimum 1.
-- Setting quantity to zero is not allowed; use remove instead.
-- The system SHALL recalculate line totals and cart subtotal after updates.
+- The system SHALL expose `GET /api/cart`, returning the cart's line items and its totals.
+- Each line item SHALL carry its identifier, the product identifier, the snapshotted product name, SKU, and image reference, the locked unit price, the quantity, and the line total.
+- The cart SHALL carry a subtotal and a total item count (FR-6).
+- When the caller has no cart, the system SHALL return an empty cart — zero items and zero totals — rather than an error, so a first-time visitor is not treated as a failure.
 
-### FR-5: Remove Item from Cart
+### FR-5: Changing and Removing Items
 
-- The system SHALL allow removing a single item from the cart by item ID.
-- The system SHOULD delete the cart (order record) when the last item is removed.
+- The system SHALL accept `PATCH /api/cart/items/:itemId` to set a line item's quantity to a positive integer (LIM-1).
+- Setting a quantity of zero SHALL be rejected; removal is a distinct operation.
+- The system SHALL accept `DELETE /api/cart/items/:itemId` to remove a single line item, and `DELETE /api/cart` to empty the cart entirely.
+- Removing the last line item SHALL discard the cart itself.
 
-### FR-6: Guest Cart Identification and Token Lifecycle
+### FR-6: Totals
 
-- The system SHALL identify guest carts via a `cart_token` cookie.
-- When a new guest cart is created, the system SHALL set the `cart_token` cookie in the response (non-httpOnly, SameSite=Lax, 30-day Max-Age). The browser sends it automatically on all subsequent cart requests — no client-side header management needed.
-- Guest carts SHALL expire 30 days after the cart was last modified (`updated_at`). The cookie expiry SHALL match this duration so both are consistent.
-- The system SHALL return HTTP 404 if a guest provides an invalid or expired cart token.
-- When a guest user logs in, the auth system SHALL automatically consume the `cart_token` cookie, merge the guest cart into the user's account, and clear the cookie — no explicit merge call is needed from the frontend (see FR-7 and `docs/specs/auth.md` FR-2).
+- A line total SHALL be the line item's locked unit price multiplied by its quantity.
+- The cart subtotal SHALL be the sum of its line totals, and the item count the sum of its quantities.
+- Totals SHALL be recomputed and persisted on the underlying order whenever line items change, so the cart's totals and the order's totals never disagree (LIM-7).
 
-### FR-7: Guest-to-User Cart Merge
+### FR-7: Guest-to-Customer Merge
 
-- Cart merge SHALL be triggered automatically by the auth system on login — not by an explicit frontend API call.
-- If the user already has a cart, items from the guest cart SHALL be merged: matching products have their quantities summed; new products are added.
-- After merge, the guest cart SHALL be deleted and the `cart_token` cookie SHALL be cleared.
-- If the user has no existing cart, the guest cart SHALL be reassigned to the user (update user ID, clear cart token column).
-- Merge SHALL execute within a single database transaction to prevent partial state.
-- A `POST /api/cart/merge` endpoint SHALL remain available for edge cases (e.g., a guest cart cookie arrives after login), but the primary path is automatic.
+- Merging SHALL be triggered by the system on sign-in when the login request carries a `cart_token` cookie (`auth.md` FR-2); the client SHALL NOT be required to call for it.
+- When the customer has no cart, the guest cart SHALL be reassigned to them: it becomes their cart, loses its cart token, and loses its guest expiry.
+- When the customer already has a cart, line items SHALL be merged into it: a product present in both carts has its quantities summed, and a product present only in the guest cart is added.
+- After a merge the guest cart SHALL be discarded and the `cart_token` cookie SHALL be cleared on the response.
+- A merge SHALL be atomic: either the whole merge is applied or none of it is, so no cart is left half-transferred.
+- The system SHALL additionally expose `POST /api/cart/merge`, requiring authentication, for the case where a guest cart token surfaces after sign-in has already completed.
 
-### FR-8: Cart Page (Web Application)
+### FR-8: Cart Page
 
-- The Cart page SHALL display a list of cart items showing: product image, product name, SKU, unit price, quantity, and line total.
-- The Cart page SHALL provide increment/decrement controls to adjust item quantity.
-- The Cart page SHALL provide a remove button for each item.
-- The Cart page SHALL display a cart summary section with subtotal and total item count.
-- The Cart page SHALL display an empty state with a message and a link to continue shopping when the cart has no items.
-- The Cart page SHALL include a "Proceed to checkout" button (disabled until checkout is implemented).
-- The Cart page SHALL NOT manage cart token storage — the browser cookie is set and cleared by the server automatically.
-- The Cart page SHALL show optimistic updates for quantity changes and removals, reverting on failure.
+- The cart page SHALL list every line item with its product image, name, SKU, unit price, quantity, and line total.
+- The page SHALL offer increment and decrement controls for each item's quantity and a control to remove the item.
+- The page SHALL display a summary carrying the subtotal and the total item count.
+- When the cart is empty, the page SHALL display an empty state with a route back to the catalog.
+- The page SHALL offer a control to proceed to checkout (`checkout.md` FR-8).
+- The page SHALL NOT read, write, or clear the cart token; the cookie is managed entirely by the server (FR-2).
 
-## Technical Requirements
+### FR-9: Cart Sidebar on Catalog Surfaces
 
-### TR-1: Order Status Extension
+- The catalog and product detail surfaces (`products.md` FR-7, FR-8) SHALL display a cart summary alongside the product content, so a customer can see their cart without leaving the catalog.
+- The sidebar SHALL list each line item's product name, quantity, and line total, and SHALL display the cart subtotal.
+- The sidebar SHALL remain visible as the customer scrolls the product content.
+- The sidebar's item list SHALL scroll within its own bounds when it holds many items, so the subtotal and the actions below it remain visible.
+- The sidebar SHALL offer routes to the cart page and to checkout.
+- When the cart is empty, the sidebar SHALL display an empty state and SHALL NOT display a subtotal or a checkout route.
+- The sidebar SHALL be hidden on small viewports, where the full width belongs to the product content.
+- The sidebar SHALL reflect a cart change made from any other surface without requiring a page reload.
+- A failure to load the cart SHALL leave the sidebar silent rather than raise an error; the sidebar is supplementary and never blocks browsing.
 
-- The system SHALL add `cart` to the allowed order statuses.
-- The `orders_status_check` constraint SHALL be updated to include `cart`.
-- A database migration SHALL be generated for this change.
+### FR-10: Inline Cart Controls on Product Cards
 
-### TR-2: Order Table Extensions
+- Each product card in the catalog grid SHALL carry cart controls whose state reflects whether that product is currently in the cart.
+- For a product not in the cart, the card SHALL present a pending-quantity picker defaulting to 1 and an add control; a successful add SHALL move the card to the in-cart state and reset the pending quantity to 1.
+- For a product in the cart, the card SHALL present increment and decrement controls beside the quantity currently held in the cart, not a locally tracked count, so the card stays correct when the cart is changed from another surface.
+- Decrementing a quantity of 1 SHALL remove the item and return the card to the not-in-cart state; the decrement control SHALL NOT be disabled at 1.
+- While a mutation for that card is in flight, that card's controls SHALL be disabled and no other card's controls SHALL be affected.
+- Cart controls SHALL be activatable without triggering the card's navigation to the product detail surface.
+- Cart controls SHALL remain present on small viewports, where the sidebar is hidden (FR-9).
+- While the cart is still loading, a card SHALL display a loading indicator in place of its controls; if the cart cannot be loaded, a card SHALL fall back to the not-in-cart state so the customer can still add.
+- Each control SHALL carry an accessible label naming the product it acts on, and the displayed quantity SHALL be announced to assistive technology when it changes.
 
-- The `orders` table SHALL gain the following nullable columns:
-  - `user_id` (UUID) — references the authenticated user who owns the cart/order
-  - `cart_token` (UUID) — unique identifier for guest carts
-- The system SHALL create a unique index on `cart_token` (filtered to non-null values).
-- The system SHALL create an index on `user_id` for efficient user cart lookup.
+### FR-11: Optimistic Updates
 
-### TR-3: Order Items Table
+- A quantity change or removal made from any surface SHALL be reflected immediately, before the server confirms it.
+- A failed mutation SHALL restore the pre-mutation state and surface an error, leaving no optimistic value visible.
+- A failed add SHALL preserve the customer's pending quantity so they can retry without re-entering it.
+- An error SHALL be scoped to the surface or card that produced it and SHALL NOT disturb the rest of the page.
+- Server-returned values SHALL replace optimistic values once a mutation settles; no client-computed total SHALL be persisted.
 
-- The system SHALL create an `order_items` table with the following columns:
+## Technical Requirements (System Limits)
 
-  | Column | Type | Constraints |
-  |--------|------|-------------|
-  | id | UUID | PK, default random |
-  | order id | UUID | NOT NULL, FK to orders |
-  | product id | UUID | NOT NULL, FK to products |
-  | quantity | integer | NOT NULL, CHECK > 0 |
-  | unit price | numeric(15,2) | NOT NULL |
-  | currency | varchar(3) | NOT NULL |
-  | product name | text | NOT NULL |
-  | product sku | text | NOT NULL |
-  | product image url | text | nullable |
-  | created at | timestamptz | NOT NULL, default now |
-  | updated at | timestamptz | NOT NULL, default now |
+- **LIM-1 — Positive integer quantity.** A line item's quantity is an integer of at least 1; zero, negative, and fractional quantities are rejected. (FR-3, FR-5)
+- **LIM-2 — Single currency per cart.** A cart holds exactly one currency, fixed by its first item; a product in another currency cannot be added. (FR-3)
+- **LIM-3 — One line per product.** A cart holds at most one line item per product; adding the same product again changes the existing line's quantity. (FR-3)
+- **LIM-4 — Guest cart lifetime.** A guest cart and its `cart_token` cookie both expire 30 days after the cart was last modified, and every modification restarts that 30 days. A cart past its expiry is not found. (FR-2)
+- **LIM-5 — Price locked at add time.** A line item's unit price, product name, SKU, and image reference are captured when the item is added and never change afterwards, including when the product is edited, repriced, or archived. (FR-3)
+- **LIM-6 — Cart token randomness.** A cart token is a cryptographically random UUID carrying 122 bits of entropy; carts cannot be found by enumerating or guessing tokens. (FR-2; Security)
+- **LIM-7 — Monetary precision.** Line totals and cart totals carry exactly two decimal places and are computed in fixed-point arithmetic, never floating point. (FR-6)
+- **LIM-8 — Active products only.** Only an `active` product can be added to a cart. (FR-3)
 
-- The system SHALL create a unique index on (order id, product id) to prevent duplicate product rows.
-- The system SHALL create an index on order id for efficient item retrieval.
+## Constraints (Externally Imposed)
 
-### TR-4: Cart API Design
-
-- Cart endpoints SHALL be under `/api/cart`.
-- Cart endpoints SHALL be registered in the **public route scope** (before the session auth plugin) so unauthenticated guests can access them. This SHALL be explicit in the server registration — not left implicit by route ordering.
-- Guest identification SHALL use the `cart_token` cookie. The server reads this cookie to locate the guest's cart; it does not require any client-side header construction.
-- Authenticated users are identified via the session cookie (`sid`) resolved by the auth plugin. If `request.user` is present, it takes precedence over any `cart_token` cookie.
-- API contracts SHALL be defined via ts-rest.
-
-  | Method | Path | Description |
-  |--------|------|-------------|
-  | GET | `/api/cart` | Get current cart with items |
-  | POST | `/api/cart/items` | Add item to cart |
-  | PATCH | `/api/cart/items/:itemId` | Update item quantity |
-  | DELETE | `/api/cart/items/:itemId` | Remove item from cart |
-  | DELETE | `/api/cart` | Clear entire cart |
-  | POST | `/api/cart/merge` | Merge guest cart into user cart (auth required) |
-
-### TR-5: Price Calculation
-
-- Line totals SHALL be calculated as `unit_price × quantity`.
-- Cart subtotal SHALL be calculated as the sum of all line totals.
-- All monetary calculations SHALL use the `numeric(15,2)` precision to avoid floating-point errors.
-- The `orders.subtotal` and `orders.total_amount` columns SHALL be updated whenever cart items change.
-
-### TR-6: Cart Module Structure
-
-- The cart feature SHALL be implemented as a new module at `modules/cart/`.
-- The module SHALL follow the standard module structure: `api/`, `services/`, `repositories/`, `domain/`.
-- The cart module SHALL depend on the orders and products tables but MAY reuse the orders repository for order-level operations.
-
-### TR-7: Cart Token Cookie Configuration
-
-- Cart tokens SHALL be UUID v4 values, cryptographically random.
-- The `cart_token` cookie SHALL be configured as: non-httpOnly (the value is not sensitive — it is a public identifier, not a credential), SameSite=Lax, Secure in production, path `/`, Max-Age matching the 30-day cart expiry.
-- The system SHALL NOT expose other users' carts through token enumeration.
-- Cart token lookup SHALL be O(log n) via the unique index on `cart_token`.
-
-### TR-8: Guest Cart Expiry and Cleanup
-
-- The `orders` table SHALL store an `expires_at` timestamp column (nullable; NULL means no expiry, used for real orders).
-- When a guest cart is created, `expires_at` SHALL be set to `now() + 30 days`.
-- When a guest cart is modified (item added, updated, or removed), `expires_at` SHALL be refreshed to `now() + 30 days` (rolling expiry matching the cookie).
-- The system SHALL treat a cart whose `expires_at` is in the past as non-existent (equivalent to not found).
-- 🚧 A scheduled cleanup job SHALL periodically hard-delete expired guest cart rows (and their order items via cascade) to prevent unbounded table growth.
-
-## Data Flow
-
-### Adding an Item to Cart (Guest)
-
-1. **Guest** sends `POST /api/cart/items` with product ID and quantity. If the browser already holds a `cart_token` cookie, it is sent automatically.
-2. **Cart API handler** validates the request payload.
-3. **Cart service** reads the `cart_token` cookie. If present, it looks up the cart by token and verifies it has not expired.
-4. If no cart exists (first item ever, or token absent/expired), **cart service** creates a new order with `cart` status, generates a UUID cart token, and sets `expires_at = now() + 30 days`.
-5. **Cart service** fetches the product from the **products table** to validate it exists, is active, and capture current price/name/SKU.
-6. **Cart service** validates currency compatibility (first item sets the cart currency, subsequent items must match).
-7. **Cart service** inserts or updates the order item in the **order items table** (upsert on order id + product id).
-8. **Cart service** recalculates the order's subtotal and total, and refreshes `expires_at` to `now() + 30 days`.
-9. **Cart API handler** sets (or refreshes) the `cart_token` cookie in the response and returns the updated cart.
-
-### Adding an Item to Cart (Authenticated User)
-
-1. **Authenticated user** sends `POST /api/cart/items` with product ID and quantity (bearer token in `Authorization` header).
-2. **Cart API handler** extracts user ID from the auth context.
-3. **Cart service** looks up existing cart by user ID.
-4. Steps 4–9 follow the same flow as the guest path, but the order is associated with user ID instead of a cart token.
-
-### Merging Guest Cart into User Cart (automatic, triggered by login)
-
-1. **Login handler** detects a `cart_token` cookie on the login request.
-2. Within the same login database transaction, **auth service** calls the cart merge service with the resolved user ID and guest cart token.
-3. If the user has no cart, **cart service** reassigns the guest cart: sets user ID, clears `cart_token` column, clears `expires_at`.
-4. If the user has a cart, **cart service** iterates guest cart items within the transaction:
-   - Matching products: sum quantities in the user's cart item.
-   - New products: move items to the user's cart.
-5. **Cart service** recalculates the user's cart totals.
-6. **Cart service** deletes the guest cart order and its remaining items.
-7. **Login handler** clears the `cart_token` cookie in the login response.
-8. **Browser** never needs to make a separate merge API call.
-
-### Cart Page Load (Web Application)
-
-1. **Browser** sends `GET /api/cart`. The `cart_token` cookie (guest) or `sid` cookie (authenticated) is sent automatically — no client-side token management needed.
-2. **Cart API** resolves identity from cookies and returns cart data (items, totals) or empty cart representation.
-3. **Cart page** renders item list, quantity controls, and summary.
-4. User interactions (quantity change, remove) trigger optimistic UI updates followed by API calls.
-5. On API failure, the **Cart page** reverts the optimistic update and shows an error notification.
+- **CON-1 — Cart is an order.** A cart is an order in `cart` status; the order entity, its status vocabulary, and its total columns are owned by `orders.md`. Adding `cart` to that vocabulary is a change to the order contract, not a cart-local one. (FR-1, FR-6)
+- **CON-2 — Product entity.** Product identity, status, currency, and price are owned by `products.md`; the cart snapshots them and does not define them. (FR-3, LIM-5)
+- **CON-3 — Session authentication.** The session that identifies an authenticated customer's cart, and the login request that triggers the merge, are owned by `auth.md`. (FR-1, FR-7)
+- **CON-4 — Browser cookie semantics.** The `cart_token` cookie is scoped to path `/`, sent with `SameSite=Lax`, marked `Secure` outside development, and carries a `Max-Age` matching the cart lifetime. It is deliberately readable by client script: the token identifies one anonymous cart and is not a credential, so withholding it from script would buy no protection. (FR-2; Security)
+- **CON-5 — Referential integrity with products.** A line item references a live product, so a product with cart items cannot be hard-deleted; withdrawing a product is done by archiving it, which leaves existing cart items displayable. (FR-3, LIM-5)
 
 ## Error Scenarios
 
 | Scenario | Response |
-|----------|----------|
-| Product not found | HTTP 404 — "Product not found" |
-| Product not active | HTTP 422 — "Product is not available" |
-| Currency mismatch (item vs cart) | HTTP 422 — "Product currency does not match cart currency" |
-| Invalid quantity (≤ 0 or non-integer) | HTTP 400 — validation error |
-| Cart item not found | HTTP 404 — "Cart item not found" |
-| Invalid cart token | HTTP 404 — "Cart not found" |
-| Merge without authentication | HTTP 401 — "Authentication required" |
-| Merge with invalid guest token | HTTP 404 — "Guest cart not found" |
+|---|---|
+| Add an item whose product does not exist | HTTP 404 — "Product not found" |
+| Add an item whose product is not `active` | HTTP 422 — "Product is not available" |
+| Add an item whose currency differs from the cart's | HTTP 422 — "Product currency does not match cart currency" |
+| Quantity of zero, negative, or non-integer | HTTP 400 — validation error |
+| Change or remove a line item that is not in the cart | HTTP 404 — "Cart item not found" |
+| Request carries a `cart_token` matching no live or unexpired cart | HTTP 404 — "Cart not found" |
+| `GET /api/cart` with no cart of any kind | HTTP 200 — empty cart, zero items, zero totals |
+| `POST /api/cart/merge` without authentication | HTTP 401 — "Authentication required" |
+| `POST /api/cart/merge` with a guest token matching no cart | HTTP 404 — "Guest cart not found" |
+| A mutation fails after an optimistic update was applied | Prior state restored on the affected surface; error surfaced; other surfaces unaffected |
+| Cart cannot be loaded on a catalog surface | Sidebar renders nothing; product cards fall back to the not-in-cart state |
+| Repeated activation of a control while its mutation is in flight | Ignored — that card's controls are disabled until the mutation settles |
 
 ## Security Considerations
 
-- Cart tokens SHALL be cryptographically random UUIDs to prevent guessing.
-- Guest cart endpoints SHALL NOT leak information about other carts (no enumeration).
-- The `cart_token` cookie is non-httpOnly because the token is a public identifier, not a credential — knowing it only allows access to one anonymous cart, not to any user account. Marking it httpOnly would provide no meaningful security benefit while complicating the implementation.
-- The manual `POST /api/cart/merge` endpoint SHALL require authentication to prevent unauthorized cart takeover.
-- Input validation (product ID format, quantity range) SHALL be enforced at the API contract level via Zod schemas.
+- A cart token SHALL be cryptographically random, so one guest's cart cannot be reached by guessing or enumerating tokens (LIM-6).
+- Cart responses SHALL disclose nothing about any cart other than the one the caller's session or token resolves to (FR-1).
+- The `cart_token` cookie is deliberately not withheld from client script, because the token grants access to one anonymous cart and never to an account; treating it as a credential would imply a protection it does not provide (CON-4).
+- `POST /api/cart/merge` SHALL require authentication, so a guest token cannot be used to graft a cart onto an account that did not present it (FR-7).
+- Cart identity SHALL always be derived from the caller's session or cookie and never from a customer identifier supplied in the request (FR-1).
+- Product identifiers and quantities SHALL be validated at the API boundary before reaching storage (FR-3, FR-5).
+- Client-side disabling of controls during a mutation is a usability measure only; the server SHALL remain the authority on concurrent cart changes (FR-11).
 
 ## Monitoring and Observability
 
-- 🚧 Track cart creation rate, item addition rate, and cart abandonment rate.
-- Log cart merge operations with user ID and guest token for audit purposes.
-- 🚧 Alert on unusual cart creation spikes (potential abuse).
+- Each merge SHALL be logged with the resolved customer and the guest cart it consumed, so a disputed or lost cart after sign-in can be reconstructed.
+- Cart creation and item-addition rates SHALL be observable, so an abnormal spike — a sign of automated abuse — is detectable against a normal baseline.
 
-## Testing and Validation
+## References
 
-### Unit Tests
+### Related Specs
 
-- Cart service: item addition (new cart, existing cart, duplicate product upsert)
-- Cart service: quantity update, item removal, cart clearing
-- Cart service: currency validation (first item sets currency, mismatch rejected)
-- Cart service: price locking (price snapshotted from product, not recalculated)
-- Cart service: guest-to-user merge (no existing user cart, existing user cart with overlapping items)
-
-### Integration Tests
-
-- Full API flow: create guest cart → add items → update quantity → remove item → clear
-- Full API flow: authenticated user cart lifecycle
-- Merge flow: guest cart + user cart with overlapping products
-- Edge cases: adding inactive product, currency mismatch, invalid cart token
-
-### Web Application Tests
-
-- Cart page renders items correctly
-- Quantity controls update the API and UI
-- Remove button removes item and updates totals
-- Empty cart state displays correctly
-- Cart token cookie is set by the server on first add and refreshed on each mutation
-
-## Risks and Mitigations
-
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Cart token brute-force | Unauthorized access to guest carts | UUID v4 has 122 bits of entropy; rate-limit cart endpoints |
-| Stale price snapshots | Customer sees different price on product page vs cart | Display "price at time of adding" clearly; 🚧 consider price refresh option |
-| Orphaned guest carts filling the database | Storage growth, query performance | `expires_at` column + 🚧 scheduled cleanup job (TR-8) |
-| Cart merge race condition | Duplicate items or lost quantities | Run merge within a database transaction with row-level locking |
-| Product deleted after added to cart | Broken references in cart items | FK constraint prevents hard delete; product archival leaves cart items displayable |
+- `orders.md` — the order entity, the `cart` status, and the totals a cart writes
+- `products.md` — the product entity and the fields a line item snapshots
+- `checkout.md` — converting the cart into a confirmed order
+- `auth.md` — the session that owns an authenticated cart, and the sign-in that triggers the merge

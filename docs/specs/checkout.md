@@ -2,251 +2,148 @@
 
 ## Overview
 
-The checkout feature converts a cart into a confirmed order. An authenticated user with items in their cart provides shipping and billing addresses, then places the order. The system transitions the cart from `cart` status to `confirmed`, assigns a permanent order number, and records the addresses.
+Checkout converts a customer's cart into a placed order. An authenticated customer with items in their cart supplies a shipping address and a billing address and places the order; the system validates that everything in the cart is still purchasable, assigns a permanent order number, records the addresses, and advances the record from `cart` to `confirmed`. Because a cart is already an order (`orders.md` FR-2), checkout advances one record rather than copying a cart into a new one, so nothing is duplicated and nothing can drift between the two.
 
-This is the first phase of the checkout flow — it does not include payment processing. Payment integration (Stripe Checkout) will be added as a future enhancement. The result of a successful checkout is a confirmed order visible on an order confirmation page.
+Placement is deliberately separate from payment: a confirmed order is a commitment to buy, not a settled one. Payment capture and the transition to `paid` are owned by `payment-webhooks.md`.
 
-The feature builds directly on the cart infrastructure: the cart (an order with `cart` status and associated order items) becomes the order itself, avoiding data duplication.
+This specification covers checkout eligibility, address collection, order placement and its atomicity and idempotency guarantees, and the checkout and order-confirmation surfaces. The cart and its line items are owned by `cart.md`; the order entity, its statuses, and its line items are owned by `orders.md`; resolving a saved address in place of an inline one is owned by `saved-addresses.md`; authentication is owned by `auth.md`.
+
+This document states the required external contract; where the running system diverges from a stated requirement, the system is at fault, not this document.
 
 ## Goals and Non-Goals
 
 ### Goals
 
-- Allow authenticated users to check out their cart by providing shipping and billing addresses
-- Transition the cart order from `cart` to `confirmed` status with a permanent order number
-- Provide a checkout API endpoint that validates the cart and records addresses
-- Deliver a Checkout page in the web application with address forms
-- Deliver an Order Confirmation page showing the placed order details
-- Enable the "Proceed to Checkout" button on the Cart page
+- Define what makes a cart eligible for checkout and what blocks it
+- Define the address contract required to place an order
+- Define order placement: the status transition, the permanent order number, and the cart identifiers it retires
+- Define the atomicity and idempotency guarantees that make a retried or double-submitted checkout safe
+- Define the checkout and order-confirmation surfaces and the entry point on the cart page
 
 ### Non-Goals
 
-- Payment processing (Stripe Checkout, payment forms) — future enhancement
-- Guest checkout (unauthenticated users must sign in before checkout)
-- Tax, shipping cost, or discount calculation (all remain zero for MVP)
-- Address book or saved addresses
-- Inventory/stock validation or reservation
-- Order editing after checkout
-- Email notifications (order confirmation email)
-- Shipping method selection
+- Payment processing and payment forms (`payment-webhooks.md`)
+- Guest checkout — an unauthenticated customer must sign in first
+- Tax, shipping-cost, and discount calculation — each remains zero at placement
+- The saved-address book and address-identifier resolution (`saved-addresses.md`)
+- Inventory validation, stock reservation, and shipping-method selection
+- Editing or cancelling an order after placement
+- Order-confirmation email and other notifications
 
 ## Functional Requirements
 
 ### FR-1: Checkout Eligibility
 
-- The system SHALL require authentication to initiate checkout.
-- The system SHALL reject checkout if the user has no cart or the cart is empty, returning an appropriate error.
-- The system SHALL validate that all cart items still reference active products before completing checkout.
-- If any product has become inactive since it was added to the cart, the system SHALL reject the checkout and indicate which items are no longer available.
+- Checkout SHALL require authentication (`auth.md` FR-4).
+- The system SHALL reject checkout when the customer has no cart, and when their cart holds no items.
+- The system SHALL verify, at the moment of placement, that every product referenced by a cart line item is still `active` (`products.md` FR-2).
+- When any referenced product is no longer active, the system SHALL reject the checkout and name the affected items, so the customer can see exactly what to remove.
+- The system SHALL verify that the cart being checked out belongs to the authenticated customer (Security).
 
 ### FR-2: Address Collection
 
-- The system SHALL accept a shipping address and a billing address as part of the checkout request.
-- Each address SHALL include the following fields: full name, address line 1, city, country code (ISO 3166-1 alpha-2), and postal code.
-- Each address SHOULD accept optional fields: address line 2, state/province/region, and phone number.
-- The system SHALL store the shipping address and billing address on the order.
-- The system MAY accept a "billing same as shipping" flag; when true, the billing address SHALL be copied from the shipping address.
+- A checkout request SHALL carry a shipping address and a billing address.
+- An address SHALL carry a full name, a first address line, a city, a postal code, and an ISO 3166-1 alpha-2 country code (LIM-3, CON-1).
+- An address MAY carry a second address line, a state or region, and a phone number.
+- A checkout request MAY set a "billing same as shipping" flag; when set, the billing address SHALL be taken from the resolved shipping address.
+- The system SHALL store the resolved shipping and billing addresses on the placed order, so the order records the addresses as they were at placement (`orders.md` FR-1).
+- A checkout request MAY reference a saved address instead of supplying one inline; that resolution is owned by `saved-addresses.md` (CON-5).
 
 ### FR-3: Order Placement
 
-- The system SHALL transition the cart's status from `cart` to `confirmed`.
-- The system SHALL replace the temporary cart order number (`CART-*`) with a permanent order number in the format `ORD-YYYYMMDD-XXXXX` where `XXXXX` is a zero-padded sequential number per day.
-- The system SHALL set the order date to the current date at the time of checkout.
-- The system SHALL clear the cart token on the order after checkout (it is no longer a cart).
-- The system SHALL return the confirmed order details including the new order number.
+- Placement SHALL advance the order's status from `cart` to `confirmed`.
+- Placement SHALL replace the cart's provisional order number with a permanent one in a dated, daily-sequential format (LIM-1).
+- Placement SHALL set the order date to the date of placement.
+- Placement SHALL clear the cart token from the order and SHALL clear the `cart_token` cookie on the response, since the record is no longer a cart (`cart.md` FR-2).
+- Placement SHALL return the confirmed order, carrying its new order number, status, addresses, line items, and totals.
+- After a successful placement the customer's cart SHALL read as empty on every cart surface, including the header item count (`cart.md` FR-4, FR-9).
 
-### FR-4: Checkout Atomicity
+### FR-4: Atomicity
 
-- The entire checkout operation (product validation, order number generation, status transition, address storage) SHALL execute within a single database transaction.
-- If any step fails, no changes SHALL be persisted.
+- Product validation, order-number assignment, the status transition, and address storage SHALL apply as a single atomic operation.
+- When any step fails, none of the changes SHALL persist, and the cart SHALL remain exactly as it was before the attempt.
 
 ### FR-5: Idempotency
 
-- If the user submits checkout for an order that is already `confirmed` (e.g., double-click, network retry), the system SHALL return the existing confirmed order rather than an error.
-- The system SHALL NOT allow checkout on orders in any status other than `cart` or `confirmed`.
+- A checkout submitted for an order that is already `confirmed` SHALL return that existing order rather than an error, so a double-submission or a network retry does not produce a second order or a spurious failure.
+- Checkout SHALL be refused for an order in any status other than `cart` or `confirmed` (LIM-5).
 
-### FR-6: Checkout Page (Web Application)
+### FR-6: Checkout Surface
 
-- The Checkout page SHALL be accessible at `/checkout`.
-- The Checkout page SHALL display an order summary showing: each item's product name, quantity, unit price, and line total, plus the cart subtotal.
-- The Checkout page SHALL present a shipping address form and a billing address form.
-- The Checkout page SHALL provide a "Same as shipping address" checkbox for the billing address; when checked, the billing fields SHALL be auto-filled and disabled.
-- The Checkout page SHALL validate required address fields client-side before submission.
-- The Checkout page SHALL display a "Place Order" button that submits the checkout request.
-- The "Place Order" button SHALL be disabled while the request is in flight to prevent double submission.
-- On success, the Checkout page SHALL redirect to the Order Confirmation page.
-- On validation errors, the Checkout page SHALL display field-level error messages.
-- If the cart is empty or missing, the Checkout page SHALL redirect to the Cart page.
+- The checkout surface SHALL be addressed at `/checkout`.
+- The surface SHALL display an order summary: each line item's product name, quantity, unit price, and line total, and the cart subtotal.
+- The surface SHALL present a shipping address form and a billing address form, and a control that copies the shipping address into the billing address; while that control is set, the billing fields SHALL be filled from the shipping address and SHALL NOT be separately editable.
+- The surface SHALL validate the required address fields before submitting, and SHALL report validation failures against the specific fields that failed.
+- The surface SHALL offer a control that places the order, disabled while a placement is in flight so the customer cannot submit twice.
+- On success, the surface SHALL route to the order confirmation surface for the placed order.
+- When the customer has no cart or an empty one, the surface SHALL route back to the cart page rather than present a form that cannot be submitted.
 
-### FR-7: Order Confirmation Page (Web Application)
+### FR-7: Order Confirmation Surface
 
-- The Order Confirmation page SHALL be accessible at `/orders/:orderNumber/confirmation`.
-- The page SHALL display: order number, order date, order status, shipping address, billing address, item list with quantities and prices, and the order total.
-- The page SHALL include a "Continue Shopping" link back to the product catalog.
-- If the order number is invalid or not found, the page SHALL display an appropriate error state.
+- The order confirmation surface SHALL be addressed by order number at `/orders/:orderNumber/confirmation`.
+- The surface SHALL display the order number, order date, status, shipping address, billing address, line items with quantities and prices, and the order total.
+- The surface SHALL offer a route back to the product catalog.
+- When the order number matches no order the customer may see, the surface SHALL display an error state (Security).
 
-### FR-8: Cart Page Update
+### FR-8: Cart Page Entry Point
 
-- The "Proceed to Checkout" button on the Cart page SHALL be enabled and navigate to `/checkout`.
-- The button SHALL only be visible to authenticated users.
-- Unauthenticated users SHALL see a "Sign in to checkout" prompt instead.
+- The cart page's proceed-to-checkout control SHALL route to `/checkout` (`cart.md` FR-8).
+- The control SHALL be offered only to an authenticated customer; an unauthenticated customer SHALL instead be prompted to sign in.
 
-## Technical Requirements
+## Technical Requirements (System Limits)
 
-### TR-1: Address Storage
+- **LIM-1 — Order number format.** A placed order's number has the form `ORD-YYYYMMDD-XXXXX`, where `YYYYMMDD` is the placement date and `XXXXX` is a zero-padded sequence that restarts at 1 each day. (FR-3)
+- **LIM-2 — Order-number contention.** A placement whose generated order number collides with an existing one retries with the next sequence number up to 3 times before failing; uniqueness is enforced by the order record itself (`orders.md` LIM-1), never by the generator alone. (FR-3)
+- **LIM-3 — Required address fields.** An address always carries a full name, first address line, city, postal code, and country code; a request missing any of them is rejected. (FR-2)
+- **LIM-4 — Zero-valued pricing components.** Tax, shipping, and discount are each zero on a placed order; checkout computes none of them. (FR-3)
+- **LIM-5 — Checkout-eligible statuses.** Only an order in `cart` or `confirmed` status can be checked out; every other status is refused. (FR-5)
+- **LIM-6 — Prices are not recomputed.** Placement carries each line item's locked unit price forward unchanged; a catalog price change between adding an item and placing the order does not alter what the customer pays (`cart.md` LIM-5). (FR-3)
 
-- Addresses SHALL be stored as JSON in the existing `shipping_address` and `billing_address` text columns on the `orders` table.
-- Address JSON structure:
+## Constraints (Externally Imposed)
 
-  | Field | Type | Required |
-  |-------|------|----------|
-  | full name | string | yes |
-  | address line 1 | string | yes |
-  | address line 2 | string | no |
-  | city | string | yes |
-  | state | string | no |
-  | postal code | string | yes |
-  | country code | string (ISO 3166-1 alpha-2) | yes |
-  | phone | string | no |
-
-- The system SHALL validate the address structure using a Zod schema in the API contract.
-
-### TR-2: Order Number Generation
-
-- The order number format SHALL be `ORD-YYYYMMDD-XXXXX` (e.g., `ORD-20260305-00001`).
-- The sequential counter SHALL reset daily.
-- The system SHALL use a database query to determine the next sequence number: count existing orders with `ORD-YYYYMMDD-` prefix + 1.
-- The unique index on `order_number` SHALL prevent duplicates under concurrent checkouts.
-- If a duplicate order number conflict occurs, the system SHALL retry with an incremented sequence number (up to 3 retries).
-
-### TR-3: Checkout API Design
-
-- The checkout endpoint SHALL be under `/api/checkout`.
-- Authentication SHALL be required (bearer token).
-
-  | Method | Path | Description |
-  |--------|------|-------------|
-  | POST | `/api/checkout` | Place order from current cart |
-
-- Request body SHALL include: shipping address, billing address, and an optional billing same as shipping flag.
-- Success response SHALL return the confirmed order with order number, status, addresses, items, and totals.
-
-### TR-4: Order Retrieval for Confirmation
-
-- The system SHALL provide an endpoint to retrieve a confirmed order by order number for the confirmation page.
-- This MAY reuse the existing orders API (`GET /api/orders/:id`) or provide a dedicated route.
-- The response SHALL include order items, which the existing orders GET endpoint may need to be extended to return.
-
-### TR-5: Checkout Module Structure
-
-- The checkout feature SHALL be implemented as a new module at `modules/checkout/`.
-- The module SHALL follow the standard module structure: `api/`, `services/`, `domain/`.
-- The checkout module SHALL depend on the cart module (to find and validate the cart) and the orders table (to update the order).
-- The checkout module SHOULD reuse the cart repository for cart lookups and the orders repository for order updates where practical.
-
-### TR-6: Cart Context Update (Web Application)
-
-- After successful checkout, the cart context SHALL be cleared (item count reset to zero) so the header cart badge reflects the empty state.
-- The checkout API handler SHALL clear the `cart_token` cookie in the response, since the cart no longer exists after checkout.
-
-## Data Flow
-
-### Checkout (Place Order)
-
-1. **Authenticated user** sends `POST /api/checkout` with shipping address and billing address.
-2. **Checkout API handler** validates the request payload (address schemas).
-3. **Checkout service** begins a database transaction.
-4. **Checkout service** loads the user's cart (order with `cart` status) by user ID.
-5. If no cart or cart is empty, the service returns an error.
-6. **Checkout service** loads all cart items and validates that each referenced product is still `active`.
-7. If any product is inactive, the service returns a validation error listing the affected items.
-8. **Checkout service** generates a permanent order number (`ORD-YYYYMMDD-XXXXX`).
-9. **Checkout service** updates the order: status → `confirmed`, order number → generated number, order date → today, shipping address → provided JSON, billing address → provided JSON, cart token → null.
-10. **Checkout service** commits the transaction.
-11. **Checkout API handler** returns the confirmed order with items and new order number.
-
-### Checkout Page Flow (Web Application)
-
-1. **Browser** navigates to `/checkout`.
-2. **Checkout page** fetches the current cart via `GET /api/cart`.
-3. If cart is empty or user is unauthenticated, redirect to `/cart`.
-4. **User** fills in shipping and billing address forms.
-5. **User** clicks "Place Order".
-6. **Checkout page** sends `POST /api/checkout` with the address data.
-7. On success, **browser** clears cart context state (item count) and redirects to `/orders/:orderNumber/confirmation`. The `cart_token` cookie is cleared by the server in the checkout response.
-8. On failure, **Checkout page** displays validation errors inline.
-
-### Order Confirmation Page Load
-
-1. **Browser** navigates to `/orders/:orderNumber/confirmation`.
-2. **Confirmation page** fetches the order details from the API.
-3. **Confirmation page** renders order summary, addresses, and item list.
+- **CON-1 — ISO 3166-1 alpha-2 country codes.** An address's country code is an ISO 3166-1 alpha-2 code; the vocabulary is defined by that standard, not by this feature. (FR-2)
+- **CON-2 — Cart ownership.** The cart, its line items, its locked prices, and its token are owned by `cart.md`; checkout consumes them and retires the cart identity. (FR-1, FR-3)
+- **CON-3 — Order entity ownership.** The order record, its status vocabulary, its uniqueness guarantee on the order number, and its address fields are owned by `orders.md`. (FR-3)
+- **CON-4 — Session authentication.** The session identifying the customer, and the cart it resolves to, are owned by `auth.md`. (FR-1)
+- **CON-5 — Saved addresses.** Referencing a stored address by identifier instead of supplying one inline, and saving an address during checkout, are owned by `saved-addresses.md`; this feature owns the address shape and the resolved address's placement on the order. (FR-2)
+- **CON-6 — Payment is downstream.** A confirmed order is unpaid; settlement and the `paid` status arrive later through `payment-webhooks.md`, so nothing here may be read as evidence of payment. (FR-3; Security)
 
 ## Error Scenarios
 
 | Scenario | Response |
-|----------|----------|
-| Unauthenticated user | HTTP 401 — "Authentication required" |
-| No cart exists | HTTP 404 — "No active cart found" |
-| Cart is empty | HTTP 422 — "Cart is empty" |
-| Product became inactive | HTTP 422 — "The following items are no longer available: [product names]" |
-| Invalid address (missing required fields) | HTTP 400 — validation error with field details |
-| Invalid country code | HTTP 400 — "Invalid country code" |
-| Order number generation conflict (exhausted retries) | HTTP 500 — "Unable to generate order number, please try again" |
-| Order already confirmed (idempotent retry) | HTTP 200 — returns existing confirmed order |
-| Order in non-checkout-eligible status | HTTP 422 — "Order cannot be checked out" |
+|---|---|
+| Checkout without authentication | HTTP 401 — "Authentication required" |
+| Customer has no cart | HTTP 404 — "No active cart found" |
+| Cart holds no items | HTTP 422 — "Cart is empty" |
+| A referenced product is no longer active | HTTP 422 — the affected items are named in the response |
+| Address missing a required field | HTTP 400 — validation error identifying the fields |
+| Country code outside ISO 3166-1 alpha-2 | HTTP 400 — "Invalid country code" |
+| Order-number contention exhausts its retries | HTTP 500 — "Unable to generate order number, please try again" |
+| Checkout submitted for an already-confirmed order | HTTP 200 — the existing confirmed order is returned |
+| Checkout submitted for an order in any other status | HTTP 422 — "Order cannot be checked out" |
+| Any step of placement fails | Nothing persists; the cart is unchanged and still eligible for checkout |
+| Confirmation surface opened for an order the customer may not see | Error state; no order data rendered |
+| Checkout surface opened with no cart or an empty one | Routed back to the cart page |
 
 ## Security Considerations
 
-- Authentication SHALL be required for all checkout operations.
-- The system SHALL verify that the cart belongs to the authenticated user before proceeding.
-- Address input SHALL be validated and sanitized via Zod schemas to prevent injection.
-- The order confirmation page SHALL only display orders belonging to the authenticated user.
+- Checkout SHALL require authentication and SHALL verify that the cart it places belongs to the authenticated customer, so no customer can place another's cart (FR-1).
+- The order confirmation surface SHALL display an order only to the customer who owns it, so an order number cannot be used to read another customer's addresses and purchases (FR-7).
+- Address input SHALL be validated at the API boundary before it is stored or rendered (FR-2, LIM-3).
+- A confirmed order SHALL NOT be treated anywhere as a paid one; fulfillment decisions belong downstream of settlement (CON-6).
 
 ## Monitoring and Observability
 
-- Log each successful checkout with user ID, order number, and item count.
-- Log checkout failures with reason (empty cart, inactive products, address validation).
-- 🚧 Track checkout conversion rate (carts created vs. orders placed).
-- 🚧 Alert on elevated checkout failure rates.
+- Each successful placement SHALL be logged with the customer, the assigned order number, and the item count, so a placed order can be traced to the request that placed it.
+- Each rejected checkout SHALL be logged with its reason — empty cart, inactive product, or address validation — so a rise in one cause is distinguishable from a rise in another.
 
-## Testing and Validation
+## References
 
-### Unit Tests
+### Related Specs
 
-- Checkout service: successful checkout transitions cart to confirmed with correct order number
-- Checkout service: rejects checkout when cart is empty
-- Checkout service: rejects checkout when cart does not exist
-- Checkout service: rejects checkout when product has become inactive
-- Checkout service: idempotent behavior when order is already confirmed
-- Checkout service: address validation (missing required fields, invalid country code)
-- Checkout service: billing same as shipping copies address correctly
-- Order number generation: sequential numbering within a day, daily reset
-
-### Integration Tests
-
-- Full API flow: add items to cart → checkout with addresses → verify order is confirmed
-- Checkout with inactive product: add item → deactivate product → checkout fails
-- Idempotency: checkout same cart twice → second call returns same order
-- Concurrent checkouts: two simultaneous requests for different users → unique order numbers
-- Unauthorized access: attempt to view another user's order confirmation → rejected
-
-### Web Application Tests
-
-- Checkout page renders order summary from cart
-- Address forms validate required fields before submission
-- "Same as shipping" checkbox copies and disables billing fields
-- Successful checkout redirects to confirmation page
-- Cart badge resets to zero after checkout
-- Empty cart redirects to cart page
-- Order confirmation page displays all order details
-
-## Risks and Mitigations
-
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Concurrent checkout for same user (double-click) | Duplicate orders or race condition | Database transaction + idempotency check (if already confirmed, return existing) |
-| Product deactivated during checkout | Order placed with unavailable item | Validate product status inside the checkout transaction |
-| Order number collision under high concurrency | Checkout failure | Retry with incremented sequence + unique index as safety net |
-| Stale cart data shown on checkout page | User sees different prices than expected | Prices are locked at cart-add time; checkout page fetches fresh cart data |
-| No payment means orders are confirmed but unpaid | Potential fulfillment of unpaid orders | Clearly display order status as "confirmed" (not "paid"); future payment feature will gate fulfillment |
+- `cart.md` — the cart, its line items and locked prices, and the token checkout retires
+- `orders.md` — the order record, its statuses, its line items, and order-number uniqueness
+- `saved-addresses.md` — resolving a stored address at checkout and saving an address during it
+- `payment-webhooks.md` — settlement and the `paid` transition that follows placement
+- `products.md` — the product status checkout re-verifies at placement
+- `auth.md` — the session required to check out

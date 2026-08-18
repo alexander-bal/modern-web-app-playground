@@ -1,287 +1,159 @@
-# Authentication — Email and Password
+# Authentication
 
 ## Overview
 
-This feature introduces email and password authentication for Mercado users. It replaces the existing static API Bearer token mechanism with a proper session-based auth system where individual users sign up, log in, and carry an httpOnly session cookie for subsequent requests.
+Authentication establishes who a customer is and keeps them signed in across requests. A customer registers with a name, an email address, and a password; the password is hashed before storage and never leaves the system. A successful registration or sign-in creates a session and returns it as an httpOnly cookie, which the browser carries on every later request; protected routes resolve that cookie to a customer or reject the request. Signing out invalidates the session on the server and clears the cookie.
 
-The existing `users` table already has the schema needed (email, password hash, salt). This spec adds the sessions table, the auth API endpoints, the session-based authentication plugin, and the web application login and registration pages.
+Authentication is the prerequisite for every customer-specific surface: checkout, order history, and the saved-address book all resolve their owner from the session. Signing in also consumes any guest cart the browser holds, so items collected before signing in follow the customer into their account.
 
-The primary beneficiaries are end users of the Mercado web application who currently have no way to create accounts or log in directly. Auth is the prerequisite for features like checkout, order history, and any user-specific personalization.
+This specification covers registration, sign-in, the session contract, request authentication, the current-customer endpoint, sign-out, and the sign-in and registration surfaces. Service-to-service authentication of the internal API is owned by `internal-authentication.md`; the guest cart merge triggered at sign-in is owned by `cart.md`.
+
+This document states the required external contract; where the running system diverges from a stated requirement, the system is at fault, not this document.
 
 ## Goals and Non-Goals
 
 ### Goals
 
-- Allow users to register with an email address and password
-- Allow registered users to log in and receive a session cookie
-- Allow users to log out and invalidate the session
-- Provide a `/api/auth/me` endpoint so clients can retrieve the currently authenticated user
-- Replace the static Bearer token authentication plugin with a session-cookie-based plugin for all protected routes
-- Deliver `/login` and `/register` pages in the web application
+- Define registration and sign-in, and the identical failure contract that keeps them from disclosing which accounts exist
+- Define the session: how it is issued, carried, extended, and invalidated
+- Define how a protected route resolves a session to a customer and what it does when it cannot
+- Define the current-customer endpoint and what it may and may not disclose
+- Define the sign-in and registration surfaces and the redirect contract for guarded routes
 
 ### Non-Goals
 
-- Password reset / forgot-password flow (deferred)
-- Email verification on registration (deferred — `confirmed_email_at` column already exists for future use)
-- Social / OAuth login (Google, GitHub, etc.)
-- Two-factor authentication
-- Admin-only user management (creating/deleting users via API)
-- Remember-me with extended token lifetime (all sessions use the same configurable expiry)
-- Role-based access control beyond the existing `is_admin` flag
+- Password reset and forgotten-password recovery
+- Email verification at registration
+- Federated sign-in — OAuth, social, and enterprise identity providers
+- Multi-factor authentication
+- Administrative user management — creating, suspending, or deleting accounts through an API
+- Extended-lifetime "remember me" sessions — every session carries the same configured lifetime
+- Authorization beyond the existing administrator flag on a customer record
+- Service-to-service authentication of internal APIs (`internal-authentication.md`)
 
 ## Functional Requirements
 
-### FR-1: User Registration
+### FR-1: Registration
 
-- The system SHALL allow a new user to register with a first name, last name, email address, and password.
-- The system SHALL reject registration if the email address is already in use, returning an error that does not confirm whether the email exists (to prevent user enumeration).
-- The system SHALL enforce a minimum password length of 8 characters.
-- The system SHALL hash and salt the password before storing it; the plaintext password SHALL NOT be persisted.
-- On successful registration, the system SHALL create a session and return a session cookie (the user is logged in immediately after registration).
+- The system SHALL accept registration via `POST /api/auth/register`, carrying a first name, last name, email address, and password.
+- The system SHALL enforce a minimum password length (LIM-1).
+- The system SHALL hash the password before storing it; the plaintext password SHALL NOT be persisted, logged, or returned (LIM-4, CON-1).
+- The system SHALL reject registration when the email address is already in use, with a response that does not confirm whether an account exists at that address (LIM-6; Security).
+- A successful registration SHALL create a session and return it as a session cookie, so the customer is signed in immediately without a second step.
 
-### FR-2: User Login
+### FR-2: Sign-in
 
-- The system SHALL allow an existing user to authenticate with their email address and password.
-- The system SHALL reject login with an identical error response for both "user not found" and "wrong password" cases to prevent user enumeration.
-- On successful login, the system SHALL create a new session record and return it as an httpOnly session cookie.
-- The system SHALL NOT return the session token in the response body.
-- If a `cart_token` cookie is present on the login request, the system SHALL automatically merge the guest cart into the user's cart within the same database transaction as session creation. After merge, the `cart_token` cookie SHALL be cleared in the login response. The cart page SHALL reflect the merged cart immediately after login without any additional client request.
+- The system SHALL accept sign-in via `POST /api/auth/login`, carrying an email address and password.
+- The system SHALL respond identically — in both message and observable timing — whether the address is unknown or the password is wrong, so neither response reveals that an account exists (LIM-6; Security).
+- A successful sign-in SHALL create a new session and return it as a session cookie.
+- The session token SHALL NOT appear in the response body (LIM-5).
+- When the sign-in request carries a `cart_token` cookie, the system SHALL merge the guest cart into the customer's cart as part of the same atomic operation that creates the session, and SHALL clear the `cart_token` cookie on the response (`cart.md` FR-7). The customer's cart SHALL read as merged immediately afterwards, without any further request from the client.
 
 ### FR-3: Session Cookie
 
-- The session cookie SHALL be httpOnly to prevent client-side JavaScript access.
-- The session cookie SHALL be marked Secure in non-development environments.
-- The session cookie SHALL use SameSite=Lax.
-- The session SHALL have a configurable expiry (default: 7 days).
-- The session expiry SHALL use a sliding window: each authenticated request SHALL extend the session expiry by the full duration.
+- The session SHALL be carried in a cookie named `sid`, scoped to path `/`.
+- The cookie SHALL be httpOnly, so client script cannot read the session token (Security).
+- The cookie SHALL be marked `Secure` outside development, and SHALL be sent with `SameSite=Lax` (CON-2).
+- A session SHALL carry a configurable lifetime (LIM-2), and the cookie's own expiry SHALL match it.
+- A session's expiry SHALL slide: each authenticated request SHALL extend it by the full lifetime, so an actively used session does not expire mid-use.
 
 ### FR-4: Authenticated Requests
 
-- All protected API routes SHALL require a valid, non-expired session cookie.
-- The system SHALL attach the resolved user (id, email, first name, last name, is admin) to the request context.
-- The system SHALL reject requests with a missing, invalid, or expired session cookie with HTTP 401.
+- A protected route SHALL require a session cookie that resolves to a live, unexpired session.
+- On a valid session, the system SHALL resolve the customer — identifier, email, first name, last name, and administrator flag — and make them available to the route.
+- The system SHALL reject a request whose session cookie is missing, unrecognized, or expired (Error Scenarios).
+- The customer's identity SHALL be derived only from the session; the system SHALL NOT accept a customer identifier, email, or name supplied by the caller as identity (LIM-7; Security).
 
-### FR-5: Current User Endpoint
+### FR-5: Current Customer
 
-- The system SHALL provide a `GET /api/auth/me` endpoint that returns the authenticated user's profile.
-- The endpoint SHALL return: user id, email, first name, last name, is admin flag, and account creation date.
-- The password hash and salt SHALL never be included in any API response.
+- The system SHALL expose `GET /api/auth/me`, returning the authenticated customer's identifier, email, first name, last name, administrator flag, and account creation date.
+- No password hash, salt, or session token SHALL appear in this or any other response (LIM-4, LIM-5).
 
-### FR-6: Logout
+### FR-6: Sign-out
 
-- The system SHALL provide a `POST /api/auth/logout` endpoint that invalidates the current session in the database.
-- On logout, the system SHALL clear the session cookie from the browser.
-- Requests to `/api/auth/logout` with an invalid or missing session SHALL return HTTP 200 (idempotent; there is nothing to invalidate).
+- The system SHALL expose `POST /api/auth/logout`, invalidating the session on the server and clearing the `sid` cookie from the browser.
+- Sign-out SHALL be idempotent: a request carrying no session, or an already-invalid one, SHALL succeed rather than fail, since there is nothing left to invalidate.
 
-### FR-7: Web Application — Login Page
+### FR-7: Sign-in Surface
 
-- The login page SHALL be accessible at `/login`.
-- The page SHALL present an email and password input and a submit button.
-- The page SHALL include a link to the registration page.
-- On successful login, the page SHALL redirect to the page the user was trying to access, or to the product catalog as default.
-- On failure, the page SHALL display a generic error ("Invalid email or password") without field-level distinction.
-- The submit button SHALL be disabled while the request is in flight.
+- The sign-in surface SHALL be addressed at `/login` and SHALL present an email field, a password field, and a submit control.
+- The surface SHALL link to the registration surface.
+- A failed sign-in SHALL display one generic message covering every cause, with no field-level distinction between an unknown address and a wrong password (LIM-6).
+- The submit control SHALL be disabled while a sign-in is in flight.
+- On success, the surface SHALL route the customer to the page they were trying to reach, or to the product catalog when there was none.
 
-### FR-8: Web Application — Registration Page
+### FR-8: Registration Surface
 
-- The registration page SHALL be accessible at `/register`.
-- The page SHALL present: first name, last name, email, password, and confirm-password inputs.
-- The page SHALL validate client-side that the password and confirm-password fields match.
-- The page SHALL enforce the minimum password length client-side.
-- The page SHALL include a link to the login page.
-- On successful registration, the page SHALL redirect to the product catalog.
-- On failure (e.g., email already taken), the page SHALL display the error message returned by the API.
+- The registration surface SHALL be addressed at `/register` and SHALL present first name, last name, email, password, and password-confirmation fields.
+- The surface SHALL verify before submitting that the two password fields match and that the password meets the minimum length (LIM-1).
+- The surface SHALL link to the sign-in surface.
+- On failure, the surface SHALL display the message the system returned.
+- On success, the surface SHALL route the customer to the product catalog.
 
-### FR-9: Auth-Guarded Routes (Web Application)
+### FR-9: Guarded Surfaces
 
-- Routes that require authentication SHALL redirect unauthenticated users to `/login`.
-- After login, the user SHALL be redirected back to the originally requested URL.
+- A surface requiring authentication SHALL send an unauthenticated visitor to `/login`, carrying the address they were trying to reach.
+- After signing in, the customer SHALL be returned to that address.
+- A session that expires while a customer is on a guarded surface SHALL send them to `/login` the same way, returning them afterwards.
 
-## Technical Requirements
+## Technical Requirements (System Limits)
 
-### TR-1: Sessions Table
+- **LIM-1 — Minimum password length.** A password is at least 8 characters; a shorter one is rejected at both the surface and the API. (FR-1, FR-8)
+- **LIM-2 — Session lifetime.** A session lives for a configurable duration, 7 days by default, measured from its last authenticated use rather than from its creation. (FR-3)
+- **LIM-3 — Session token randomness.** A session token is 32 cryptographically random bytes; sessions cannot be reached by guessing or enumerating tokens. (FR-3; Security)
+- **LIM-4 — Passwords never leave.** A plaintext password is never persisted, never logged, and never returned; the stored hash and its salt appear in no response. (FR-1, FR-5)
+- **LIM-5 — Session token stays in the cookie.** The session token appears only in the `sid` cookie, never in a response body. (FR-2, FR-5)
+- **LIM-6 — Indistinguishable authentication failures.** A registration against an existing address, a sign-in with an unknown address, and a sign-in with a wrong password are indistinguishable to the caller in message and in observable timing. (FR-1, FR-2, FR-7)
+- **LIM-7 — Identity comes only from the session.** No request header or body field can establish, override, or widen the caller's identity. (FR-4; Security)
+- **LIM-8 — Concurrent sessions.** A customer may hold several live sessions at once; signing in on one device does not invalidate another, and signing out invalidates only the session that made the request. (FR-2, FR-6)
 
-A new `sessions` table SHALL be added to the database schema:
+## Constraints (Externally Imposed)
 
-| Column | Type | Notes |
-|--------|------|-------|
-| id | UUID | Primary key, generated randomly |
-| user id | UUID | Foreign key to `users.id`, cascade on delete |
-| token | text | Cryptographically secure random token (32 bytes, hex-encoded); unique |
-| expires at | timestamp with time zone | Absolute expiry time |
-| created at | timestamp with time zone | Creation timestamp |
-| last used at | timestamp with time zone | Updated on each authenticated request (for the sliding window) |
-
-- The system SHALL create a unique index on the session token column.
-- The system SHALL create an index on `user_id` for efficient session lookup by user.
-- The system SHALL create an index on `expires_at` to support efficient cleanup of expired sessions.
-
-### TR-2: Password Hashing
-
-- The system SHALL use **argon2id** for password hashing (via the `argon2` npm package).
-- The existing `password` and `salt` columns SHALL be used; the argon2id output includes the salt, so the `salt` column MAY store a static pepper or be left empty for this implementation.
-- The system SHALL use argon2id's default recommended parameters (memory cost, time cost, parallelism).
-
-### TR-3: Auth API Endpoints
-
-All auth routes SHALL be under the `/api/auth` prefix and SHALL NOT require authentication (public routes):
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/api/auth/register` | Register a new user |
-| POST | `/api/auth/login` | Log in and receive session cookie |
-| POST | `/api/auth/logout` | Log out and clear session cookie |
-| GET | `/api/auth/me` | Get currently authenticated user (requires auth) |
-
-### TR-4: Session Authentication Plugin
-
-- The existing Bearer token authentication plugin (`infra/auth/`) SHALL be replaced with a session-based plugin.
-- The new plugin SHALL read the session token from the request cookie, look it up in the database, and verify it has not expired.
-- On a valid session, the plugin SHALL update `last_used_at` and extend `expires_at` (sliding expiration) in the database.
-- The plugin SHALL attach the full user record to the request context (replacing the current `request.user` shape).
-- The `X-User-Id`, `X-User-Email`, and `X-User-Name` header-based user context extraction SHALL be removed.
-- The `API_BEARER_TOKENS` environment variable SHALL no longer be required.
-
-### TR-5: Auth Module
-
-- The auth feature SHALL be implemented as a module at `modules/auth/`.
-- The module SHALL expose: `register`, `login`, `logout`, and `getMe` handlers.
-- Password hashing and session token generation SHALL live in the auth service layer.
-- Session reads and writes SHALL live in the auth repository layer.
-
-### TR-6: Web Application — API Client
-
-- The web application API client SHALL include `credentials: 'include'` in all requests so the session cookie is sent automatically.
-- No authentication header manipulation is required in the frontend.
-
-### TR-7: Expired Session Cleanup
-
-- 🚧 The system SHOULD periodically delete expired sessions from the database to prevent unbounded table growth (scheduled job or cron).
-
-### TR-8: Cookie Configuration
-
-- The cookie name SHALL be `sid`.
-- The cookie path SHALL be `/`.
-- The `Secure` flag SHALL be set based on the `NODE_ENV` environment variable (enabled in production, disabled in development).
-- The `Max-Age` SHALL reflect the session expiry duration in seconds.
-
-## Data Flow
-
-### Registration
-
-1. **User** submits `POST /api/auth/register` with first name, last name, email, and password.
-2. **Auth API handler** validates the request body (required fields, password length, email format).
-3. **Auth service** checks that the email is not already in use.
-4. If the email exists, the service returns HTTP 409 with a generic conflict message.
-5. **Auth service** hashes the password using argon2id.
-6. **Auth service** inserts the new user into the `users` table.
-7. **Auth service** generates a 32-byte cryptographically secure session token.
-8. **Auth service** inserts a session record into the `sessions` table with the token and expiry.
-9. **Auth API handler** sets the `sid` httpOnly cookie on the response and returns HTTP 201 with the user profile.
-
-### Login
-
-1. **User** submits `POST /api/auth/login` with email and password. The browser automatically includes any `cart_token` cookie if present.
-2. **Auth API handler** validates the request body.
-3. **Auth service** looks up the user by email.
-4. If the user is not found, the service waits a fixed duration (to prevent timing-based enumeration) and returns HTTP 401 with a generic message.
-5. **Auth service** verifies the submitted password against the stored argon2id hash.
-6. If the hash does not match, the service returns HTTP 401 with the same generic message.
-7. **Auth service** begins a database transaction: creates a session record, then checks for a `cart_token` cookie.
-8. If a `cart_token` cookie is present and valid, **auth service** calls the cart merge service within the same transaction (merging or reassigning the guest cart to the user).
-9. **Auth service** commits the transaction.
-10. **Auth API handler** sets the `sid` httpOnly cookie, clears the `cart_token` cookie, and returns HTTP 200 with the user profile.
-
-### Authenticated Request
-
-1. **Client** sends a request to a protected route with the `sid` cookie.
-2. **Session auth plugin** reads the `sid` cookie value.
-3. **Plugin** queries the `sessions` table for a non-expired record matching the token.
-4. If not found or expired, the plugin rejects the request with HTTP 401.
-5. **Plugin** updates `last_used_at` and extends `expires_at` for the session (sliding expiry).
-6. **Plugin** attaches the resolved user to `request.user`.
-7. **Route handler** processes the request with the user context available.
-
-### Logout
-
-1. **Client** sends `POST /api/auth/logout` with the `sid` cookie.
-2. **Auth service** deletes the session record matching the token (if it exists).
-3. **Auth API handler** clears the `sid` cookie (Max-Age=0) and returns HTTP 200.
-
-## Security Considerations
-
-- Passwords SHALL be hashed with argon2id and never stored in plaintext or returned in any response.
-- Session tokens SHALL be generated with `crypto.randomBytes(32)` to ensure cryptographic unpredictability.
-- Login and registration endpoints SHALL use identical error messages and timing behavior for both "not found" and "wrong password" cases to prevent user enumeration.
-- The `sid` cookie SHALL be httpOnly and Secure (in production) to mitigate XSS and network interception.
-- SameSite=Lax provides CSRF protection for state-changing requests from cross-origin navigations.
-- 🚧 Rate limiting on `/api/auth/login` and `/api/auth/register` SHOULD be applied to mitigate brute-force attacks (recommended: 10 attempts per IP per 15-minute window).
-
-## Monitoring and Observability
-
-- Log each successful registration with user id (no PII beyond id) and timestamp.
-- Log each successful login with user id, session id, and source IP.
-- Log each failed login attempt with source IP (but not the submitted email, to avoid logging PII in failure paths).
-- Log each logout with session id.
-- 🚧 Alert on an elevated rate of failed login attempts per IP (potential brute-force).
+- **CON-1 — Password hashing function.** Passwords are hashed with argon2id at its recommended parameters; the algorithm's cost, memory, and parallelism defaults, and the fact that it carries its salt inside the encoded hash, are properties of that function and not of this feature. (FR-1)
+- **CON-2 — Browser cookie semantics.** `SameSite=Lax` governs when the browser attaches the `sid` cookie to cross-site requests, and is what makes it a CSRF mitigation for state-changing requests; `Secure` and httpOnly are likewise enforced by the browser, not by this feature. (FR-3; Security)
+- **CON-3 — Guest cart merge.** The merge performed at sign-in, and the `cart_token` cookie it consumes, are owned by `cart.md`; this feature owns only the moment it happens and its atomicity with session creation. (FR-2)
+- **CON-4 — Customer record.** The customer entity, including the administrator flag and the email-confirmation field this feature leaves unused, exists independently of authentication. (FR-4, FR-5)
+- **CON-5 — Session storage growth.** Sessions accumulate as customers sign in and are not removed at expiry by the act of expiring; unbounded growth is a property of the store that must be addressed operationally. (FR-3)
 
 ## Error Scenarios
 
 | Scenario | Response |
-|----------|----------|
-| Registration with existing email | HTTP 409 — "An account with this email address already exists" |
-| Registration with invalid email format | HTTP 400 — validation error |
-| Registration with password shorter than 8 characters | HTTP 400 — "Password must be at least 8 characters" |
-| Login with unknown email | HTTP 401 — "Invalid email or password" |
-| Login with wrong password | HTTP 401 — "Invalid email or password" |
-| Request to protected route with missing cookie | HTTP 401 — "Authentication required" |
-| Request to protected route with expired session | HTTP 401 — "Session expired" |
-| Request to protected route with invalid token | HTTP 401 — "Authentication required" |
-| Logout with no active session | HTTP 200 — success (idempotent) |
+|---|---|
+| Register with an email address already in use | HTTP 409 — "An account with this email address already exists" |
+| Register with a malformed email address | HTTP 400 — validation error |
+| Register with a password shorter than 8 characters | HTTP 400 — "Password must be at least 8 characters" |
+| Sign in with an unknown email address | HTTP 401 — "Invalid email or password" |
+| Sign in with a wrong password | HTTP 401 — "Invalid email or password" (identical to the unknown-address response) |
+| Request a protected route with no session cookie | HTTP 401 — "Authentication required" |
+| Request a protected route with an unrecognized session token | HTTP 401 — "Authentication required" |
+| Request a protected route with an expired session | HTTP 401 — "Session expired" |
+| Sign out with no active session | HTTP 200 — success, idempotent |
+| Session expires while the customer is on a guarded surface | Sent to `/login` and returned to the same address after signing in |
 
-## Testing and Validation
+## Security Considerations
 
-### Unit Tests
+- Passwords SHALL be hashed with argon2id and SHALL never be stored, logged, or returned in plaintext (FR-1, LIM-4, CON-1).
+- Session tokens SHALL be cryptographically random, so a session cannot be reached by guessing (LIM-3).
+- Registration and sign-in failures SHALL be indistinguishable in message and observable timing, so neither surface can be used to learn which email addresses hold accounts (LIM-6).
+- The `sid` cookie SHALL be httpOnly so client script cannot read the session token, and `Secure` outside development so it is not carried over plaintext connections (FR-3).
+- `SameSite=Lax` SHALL be relied on as the CSRF mitigation for state-changing requests reached by cross-site navigation (CON-2).
+- Caller identity SHALL be derived only from the session cookie; no header or body field SHALL establish or override it, so a caller cannot act as another customer by asserting one (LIM-7).
+- Sign-in and registration are the system's brute-force surface, and each attempt costs deliberate hashing work; both SHALL be rate-limited per source, so repeated guessing is bounded and cannot be turned into a denial-of-service against the hashing cost itself.
 
-- Registration service: successful registration creates user and session
-- Registration service: rejects duplicate email
-- Registration service: rejects short password
-- Login service: successful login returns session token
-- Login service: rejects unknown email with generic error (no enumeration)
-- Login service: rejects wrong password with generic error
-- Login service: equivalent response time for not-found vs. wrong-password paths
-- Session plugin: valid non-expired session attaches user and extends expiry
-- Session plugin: missing cookie rejects with 401
-- Session plugin: expired session rejects with 401
-- Session plugin: unknown token rejects with 401
-- Logout service: deletes session record
-- Logout service: succeeds even if no session exists
+## Monitoring and Observability
 
-### Integration Tests
+- Each successful registration SHALL be logged with the created customer identifier and the time, carrying no further personal data.
+- Each successful sign-in SHALL be logged with the customer identifier, the session identifier, and the source address, so a session can be traced to where it was established.
+- Each failed sign-in SHALL be logged with the source address and SHALL NOT record the submitted email address, so a failure log does not accumulate addresses that were never accounts.
+- Each sign-out SHALL be logged with the session identifier.
+- An elevated rate of failed sign-ins from one source SHALL be detectable, since that is the observable signature of credential guessing.
 
-- Full registration flow: register → protected route with cookie → user context available
-- Full login flow: login → session cookie set → protected route succeeds
-- Logout flow: login → logout → protected route rejected with 401
-- Concurrent login: same user logs in from two sessions — both sessions valid simultaneously
-- Session expiry: create session with past expiry → protected route rejected
+## References
 
-### Web Application Tests
+### Related Specs
 
-- Login page: successful login redirects to catalog
-- Login page: failed login displays generic error
-- Registration page: mismatched passwords blocked client-side
-- Registration page: short password blocked client-side
-- Registration page: successful registration redirects to catalog
-- Protected routes redirect unauthenticated users to `/login` with return URL
-- After login from redirect, user lands on the originally requested page
-
-## Risks and Mitigations
-
-| Risk | Impact | Mitigation |
-|------|--------|------------|
-| Argon2id is slow by design, vulnerable to DoS if many concurrent login attempts | High CPU under attack | Rate limiting on auth endpoints (🚧) |
-| Session table grows unboundedly | Slow session lookups over time | Periodic cleanup of expired sessions (🚧 TR-7) |
-| Timing attack on login (email enumeration) | User privacy | Fixed-duration wait on not-found path; identical error messages |
-| Cookie theft via XSS | Account takeover | httpOnly cookie prevents JS access; Content-Security-Policy headers recommended |
-| Concurrent sliding expiry updates cause race | Session may expire unexpectedly | Last-write-wins on `expires_at` update is acceptable; no correctness risk |
-| Removing Bearer token auth breaks existing integrations | Auth regressions | All protected routes must be tested with new session auth before Bearer token plugin is removed |
+- `cart.md` — the guest cart merged into the customer's cart at sign-in
+- `orders.md` — the customer order history resolved from the session
+- `checkout.md` — the authenticated surface that places an order
+- `saved-addresses.md` — the per-customer address book resolved from the session
+- `internal-authentication.md` — service-to-service authentication of the internal API

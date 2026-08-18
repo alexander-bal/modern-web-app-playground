@@ -2,260 +2,134 @@
 
 ## Overview
 
-Users currently must re-enter shipping and billing addresses on every checkout. This feature adds a persistent address book so authenticated users can save, manage, and reuse addresses across orders — the standard e-commerce pattern found in Amazon, Shopify storefronts, etc.
+Saved addresses give an authenticated customer a persistent address book, so shipping and billing details are entered once and reused on every later order. A customer manages the book directly — creating, editing, deleting, and designating one address as their default — and reaches it again at checkout, where the default is pre-selected, any saved address can be chosen instead, and a one-off address can still be typed inline.
 
-## Goals
+The address book is a single shared pool: an address is not designated as a shipping address or a billing address, and either role may draw from it. Addresses stored on placed orders are independent copies; changing or deleting a saved address never alters what a historical order recorded.
 
-- Allow authenticated users to save, list, edit, and delete addresses
-- Enable users to designate one address as default (auto-selected at checkout)
-- Allow saving a new address during the checkout flow
-- Show a saved-address picker at checkout; users may also enter a one-off address
-- Reduce checkout friction for repeat customers
+This specification covers the address entity, the management surface, the default-address rule, and the checkout extensions that resolve a saved address or save an inline one. The checkout flow itself, the address field contract, and the placement of resolved addresses onto an order are owned by `checkout.md`; the order record is owned by `orders.md`; authentication is owned by `auth.md`.
 
-## Non-Goals
+This document states the required external contract; where the running system diverges from a stated requirement, the system is at fault, not this document.
 
-- Guest address storage (guests always type addresses fresh)
-- Separate shipping vs. billing address pools (one shared address book)
-- Address validation against postal authority data
-- Address auto-complete / suggestions (separate feature)
+## Goals and Non-Goals
+
+### Goals
+
+- Define the saved-address entity and the per-customer address book
+- Define the management surface: list, create, update, delete
+- Define the default-address rule, including how a default is established, moved, and lost
+- Define the checkout extensions: resolving a saved address by identifier, and saving an inline address during checkout
+- Define the per-customer address limit and the ownership isolation that governs every operation
+
+### Non-Goals
+
+- Guest address storage — an unauthenticated customer always types an address fresh
+- Separate shipping and billing address pools — the book is one shared pool
+- Validating an address against postal-authority data
+- Address auto-complete and suggestions
+- Automatic default reassignment when the default address is deleted
+- The checkout flow and the address field contract (`checkout.md`)
 
 ## Functional Requirements
 
-**FR-1**: The system SHALL provide an address book for each authenticated user, accessible at any time outside of checkout.
+### FR-1: Address Book
 
-**FR-2**: A user SHALL be able to create a new saved address with: full name, address line 1, address line 2 (optional), city, state (optional), postal code, country code (ISO 3166-1 alpha-2), and phone (optional).
+- The system SHALL maintain an address book per authenticated customer, reachable at any time and not only during checkout.
+- Every address operation SHALL derive its owner from the request's session and SHALL never accept a customer identifier from the caller (Security).
+- A saved address SHALL carry the same fields as a checkout address (`checkout.md` FR-2): a full name, a first address line, a city, a postal code, and an ISO 3166-1 alpha-2 country code, and optionally a second address line, a state or region, and a phone number.
+- A saved address SHALL carry a default flag and `createdAt` and `updatedAt` timestamps.
 
-**FR-3**: A user SHALL be able to update any field of their saved addresses.
+### FR-2: Listing Addresses
 
-**FR-4**: A user SHALL be able to delete any of their saved addresses. Deletion SHALL NOT affect address data stored on historical orders.
+- The system SHALL expose `GET /api/v1/addresses`, returning every address the authenticated customer has saved.
+- Results SHALL be ordered with the default address first, then by creation time, oldest first, so the address a customer most likely wants leads the list.
+- A customer with no saved addresses SHALL receive an empty result rather than an error.
 
-**FR-5**: A user SHALL be able to mark exactly one saved address as their default. Setting a new default SHALL atomically unset the previous default.
+### FR-3: Creating an Address
 
-**FR-6**: The system SHALL enforce a maximum of 20 saved addresses per user. Attempts to exceed this limit SHALL be rejected with an error.
+- The system SHALL expose `POST /api/v1/addresses`, accepting the address fields and an optional request to make the new address the default.
+- A customer's first saved address SHALL become their default automatically.
+- Creation SHALL be rejected when the customer already holds the maximum number of addresses (LIM-1).
 
-**FR-7**: At checkout, authenticated users with saved addresses SHALL be presented with a picker listing their saved addresses; they MAY also select "Enter a new address" to type an address inline.
+### FR-4: Updating an Address
 
-**FR-8**: If the user has a default address, it SHALL be pre-selected in the checkout shipping address picker.
+- The system SHALL expose `PUT /api/v1/addresses/:id`, updating any field of an address the caller owns.
+- Setting the default flag on an address SHALL make it the customer's default (FR-6).
 
-**FR-9**: During checkout, the user MAY opt to save the entered address to their address book. If saved and the user has no existing default, the new address SHALL become the default.
+### FR-5: Deleting an Address
 
-**FR-10**: A checkout request SHALL accept either a saved address identifier or an inline address object for shipping and billing. Supplying both for the same field SHALL be rejected.
+- The system SHALL expose `DELETE /api/v1/addresses/:id`, removing an address the caller owns.
+- Deleting an address SHALL NOT alter the address recorded on any existing order (LIM-4).
+- Deleting the default address SHALL leave the customer with no default; the system SHALL NOT promote another address in its place (LIM-3).
 
-**FR-11**: The `billingSameAsShipping` flag SHALL continue to function when using saved address identifiers: when true, the resolved shipping address is used as billing regardless of whether it came from a saved address or inline input.
+### FR-6: Default Address
 
-**FR-12**: Deleting the default address SHALL leave the user with no default. The system SHALL NOT auto-assign a new default.
+- A customer SHALL have at most one default address at any moment (LIM-2).
+- Designating a new default SHALL clear the previous default in the same atomic operation, so no moment exists in which the customer has two defaults or none unexpectedly.
 
-**FR-13**: When a user creates their first address, it SHALL automatically become the default.
+### FR-7: Checkout Address Selection
 
-## Technical Requirements
+- At checkout, an authenticated customer holding saved addresses SHALL be presented with a picker listing them, and SHALL be able to choose to enter a new address inline instead.
+- When the customer has a default address, the picker SHALL pre-select it for the shipping address.
+- A checkout request SHALL accept, for each of shipping and billing, either a saved-address identifier or an inline address — exactly one of the two (LIM-5).
+- A supplied saved-address identifier SHALL be resolved against the authenticated customer's own book; an identifier the customer does not own SHALL be rejected (Security).
+- A resolved saved address SHALL be used from that point exactly as an inline address would be, and SHALL be stored on the order as an independent copy (`checkout.md` FR-2, LIM-4).
+- The "billing same as shipping" flag SHALL continue to apply regardless of how the shipping address was supplied, taking the resolved shipping address as the billing address (`checkout.md` FR-2).
 
-**TR-1**: A new `addresses` table SHALL be added to the database with columns: `id` (UUID PK), `user_id` (UUID FK → users, CASCADE DELETE), `full_name`, `address_line_1`, `address_line_2` (nullable), `city`, `state` (nullable), `postal_code`, `country_code` (char 2), `phone` (nullable), `is_default` (boolean, default false), `created_at`, `updated_at` (both timestamptz).
+### FR-8: Saving an Address During Checkout
 
-**TR-2**: The `addresses` table SHALL have an index on `user_id` for efficient per-user lookups.
+- A checkout request MAY ask that an inline address be saved to the customer's address book.
+- A save request SHALL be valid only alongside an inline address, never alongside a saved-address identifier (LIM-5).
+- An address saved during checkout SHALL become the customer's default when they have no default at that moment (FR-3).
+- Saving SHALL be part of the checkout operation, so an address is never saved for a checkout that did not complete (`checkout.md` FR-4).
 
-**TR-3**: The `addresses` table SHALL have a partial unique index on `(user_id) WHERE is_default = true` to enforce at most one default per user at the database level.
+## Technical Requirements (System Limits)
 
-**TR-4**: A new `addresses` module SHALL be added to the backend following existing module conventions.
+- **LIM-1 — Address book size.** A customer holds at most 20 saved addresses; a creation that would exceed it is rejected. (FR-3)
+- **LIM-2 — At most one default.** A customer has at most one default address at any moment, enforced by the address store itself and not by application sequencing alone, so two concurrent requests cannot both leave a default set. (FR-6)
+- **LIM-3 — No automatic default reassignment.** Deleting the default address leaves the customer with no default until they designate one. (FR-5)
+- **LIM-4 — Order addresses are independent.** An address recorded on an order is a copy; editing or deleting the saved address it came from never changes what the order recorded. (FR-5, FR-7)
+- **LIM-5 — Exactly one address source per role.** For each of shipping and billing, a checkout request supplies either an inline address or a saved-address identifier — never both and never neither — and a save-this-address request is valid only with the inline form. Billing may alternatively be satisfied by the "billing same as shipping" flag. (FR-7, FR-8)
+- **LIM-6 — Ownership isolation.** Every read, update, delete, and checkout resolution is confined to the caller's own addresses; an address belonging to another customer is reported as not found. (FR-1; Security)
 
-**TR-5**: Address API routes SHALL be exposed under `/api/v1/addresses` and included in the OpenAPI specification.
+## Constraints (Externally Imposed)
 
-**TR-6**: The checkout request schema SHALL be extended with: `shippingAddressId` (UUID, optional), `billingAddressId` (UUID, optional), `saveShippingAddress` (boolean, optional), `saveBillingAddress` (boolean, optional). Existing inline `shippingAddress` / `billingAddress` fields SHALL remain valid.
-
-**TR-7**: Setting a new default address SHALL update both the target and previous default in a single database transaction.
-
-**TR-8**: When `saveShippingAddress` or `saveBillingAddress` is true during checkout, the address SHALL be persisted to the `addresses` table within the same checkout transaction.
-
-## Data Model
-
-### addresses
-
-| Column | Type | Constraints |
-|---|---|---|
-| id | uuid | PK, DEFAULT gen_random_uuid() NOT NULL |
-| user_id | uuid | FK → users(id) ON DELETE CASCADE, NOT NULL |
-| full_name | text | NOT NULL |
-| address_line_1 | text | NOT NULL |
-| address_line_2 | text | nullable |
-| city | text | NOT NULL |
-| state | text | nullable |
-| postal_code | text | NOT NULL |
-| country_code | char(2) | NOT NULL |
-| phone | text | nullable |
-| is_default | boolean | NOT NULL DEFAULT false |
-| created_at | timestamptz | NOT NULL DEFAULT now() |
-| updated_at | timestamptz | NOT NULL DEFAULT now() |
-
-Indexes:
-- `addresses_user_id_idx` on `(user_id)`
-- `addresses_one_default_per_user_idx` UNIQUE PARTIAL on `(user_id) WHERE is_default = true`
-
-## API
-
-### GET /api/v1/addresses
-Returns all saved addresses for the authenticated user, ordered by `is_default DESC, created_at ASC`.
-
-**Response 200**:
-```json
-{
-  "addresses": [
-    {
-      "id": "uuid",
-      "fullName": "John Doe",
-      "addressLine1": "123 Main St",
-      "addressLine2": null,
-      "city": "New York",
-      "state": "NY",
-      "postalCode": "10001",
-      "countryCode": "US",
-      "phone": "+1-555-0100",
-      "isDefault": true,
-      "createdAt": "2026-03-11T10:00:00Z",
-      "updatedAt": "2026-03-11T10:00:00Z"
-    }
-  ]
-}
-```
-
-### POST /api/v1/addresses
-Creates a new saved address.
-
-**Request body**: address fields + optional `isDefault: boolean`
-
-**Response 201**: the created address object
-
-### PUT /api/v1/addresses/:id
-Updates a saved address. Setting `isDefault: true` triggers an atomic default swap.
-
-**Response 200**: the updated address object
-
-### DELETE /api/v1/addresses/:id
-Deletes a saved address.
-
-**Response 204**: no body
-
-### Checkout request extensions
-
-`POST /api/checkout` additions (all optional, extend existing schema):
-
-```json
-{
-  "shippingAddressId": "uuid",
-  "billingAddressId": "uuid",
-  "saveShippingAddress": true,
-  "saveBillingAddress": false
-}
-```
-
-Validation rules:
-- Exactly one of `shippingAddress` (inline) or `shippingAddressId` SHALL be present (not both, not neither)
-- For billing: exactly one of `billingAddress`, `billingAddressId`, or `billingSameAsShipping: true` SHALL be present
-- `saveShippingAddress` / `saveBillingAddress` are only valid alongside inline address fields (not with `*AddressId`)
-
-## Data Flows
-
-### List addresses
-
-1. **Client** → `GET /api/v1/addresses`
-2. **Auth middleware** verifies session; rejects 401 if unauthenticated
-3. **Addresses service** queries `addresses WHERE user_id = $userId ORDER BY is_default DESC, created_at ASC`
-4. **Response** 200 with address list (empty array if none)
-
-### Create address
-
-1. **Client** → `POST /api/v1/addresses`
-2. **Auth middleware** verifies session
-3. **Addresses service** validates input; counts existing — rejects 422 if ≥ 20
-4. If user has no addresses OR `isDefault: true` requested:
-   - Transaction: `UPDATE addresses SET is_default = false WHERE user_id = $userId`; INSERT new address with `is_default = true`
-5. Otherwise: INSERT with `is_default = false`
-6. **Response** 201
-
-### Set default (via PUT)
-
-1. **Client** → `PUT /api/v1/addresses/:id` with `{ isDefault: true }`
-2. **Auth middleware** verifies session
-3. **Addresses service** confirms address belongs to user (404 if not)
-4. Transaction:
-   - `UPDATE addresses SET is_default = false WHERE user_id = $userId`
-   - `UPDATE addresses SET is_default = true, updated_at = now() WHERE id = $id`
-5. **Response** 200
-
-### Delete address
-
-1. **Client** → `DELETE /api/v1/addresses/:id`
-2. **Auth middleware** verifies session
-3. **Addresses service** confirms address belongs to user (404 if not)
-4. `DELETE FROM addresses WHERE id = $id AND user_id = $userId`
-5. **Response** 204
-
-### Checkout with saved address ID
-
-1. **Client** → `POST /api/checkout` with `shippingAddressId: "uuid"`
-2. **Auth middleware** verifies session; rejects 401 if unauthenticated
-3. **Checkout service** queries `addresses WHERE id = $shippingAddressId AND user_id = $userId` — 422 if not found
-4. Resolved address object used as `shippingAddress` for the rest of the checkout flow (existing path)
-5. Order stores the resolved address JSON
-6. **Response** 200 with confirmed order
-
-### Checkout with inline address + save flag
-
-1. **Client** → `POST /api/checkout` with inline `shippingAddress` + `saveShippingAddress: true`
-2. **Checkout service** validates inline address (existing validation)
-3. Within checkout transaction:
-   - If user has no default: INSERT address with `is_default = true`
-   - Otherwise: INSERT address with `is_default = false`
-4. Order stores the inline address JSON (same as today)
-5. **Response** 200
-
-## Security Considerations
-
-- All `/api/v1/addresses` endpoints require an active authenticated session (401 if absent)
-- Address ownership is enforced on every read, update, and delete — the service queries `WHERE id = ? AND user_id = ?` and returns 404 on mismatch to avoid information disclosure
-- `user_id` is always derived from the authenticated session, never accepted from the request body
-- Checkout `*AddressId` values are validated against the authenticated user before the address data is used
-
-## Monitoring & Observability
-
-- Structured log entries on address creation, update, delete, and default-change (include `addressId`, `userId`, operation name)
-- Existing checkout service logs cover address resolution during checkout
+- **CON-1 — ISO 3166-1 alpha-2 country codes.** A saved address's country code is an ISO 3166-1 alpha-2 code, the same vocabulary checkout enforces. (FR-1)
+- **CON-2 — Checkout owns the address contract.** The address field set, its validation, and the placement of a resolved address onto an order are owned by `checkout.md`; this feature owns storage, selection, and the default rule. (FR-1, FR-7)
+- **CON-3 — Session authentication.** The session identifying the address book's owner is owned by `auth.md`. (FR-1)
+- **CON-4 — Customer lifecycle.** An address book belongs to a customer account and does not outlive it; deleting the customer removes their saved addresses. (FR-1)
+- **CON-5 — Additive checkout extension.** The saved-address fields extend the checkout request additively; a request supplying only inline addresses remains valid, so existing callers are unaffected. (FR-7, FR-8)
 
 ## Error Scenarios
 
-| Scenario | HTTP Status | Body |
-|---|---|---|
-| Unauthenticated request to any address endpoint | 401 | standard auth error |
-| Address not found or not owned by requesting user | 404 | `{ error: "Address not found" }` |
-| Address limit reached (user already has 20) | 422 | `{ error: "Address limit reached" }` |
-| Invalid input (missing required fields, bad country code) | 422 | field-level validation errors |
-| Checkout: both `shippingAddress` and `shippingAddressId` provided | 422 | `{ error: "Provide either shippingAddress or shippingAddressId, not both" }` |
-| Checkout: neither `shippingAddress` nor `shippingAddressId` provided | 422 | `{ error: "Shipping address is required" }` |
-| Checkout: `shippingAddressId` not owned by user | 422 | `{ error: "Shipping address not found" }` |
-| Checkout: `saveShippingAddress: true` used with `shippingAddressId` | 422 | `{ error: "Cannot save an already-saved address" }` |
-
-## Testing & Validation
-
-### Unit / Integration Tests
-
-- Address service: create (first address becomes default), create with explicit `isDefault`, list (ordered correctly), update fields, set-default (atomic swap), delete, delete default (no auto-reassign)
-- Address service: reject creation when user already has 20 addresses
-- Checkout service: resolve `shippingAddressId` (owned), reject `shippingAddressId` (not owned or not found), save-on-checkout for user with/without existing default, both inline and ID paths produce correct order address JSON
-- Authorization: confirm 404 when operating on another user's address ID
-
-### E2E Tests (Playwright)
-
-**E2E-1 — Address book CRUD**: Authenticated user visits `/account/addresses`, adds a new address, verifies it appears as default, adds a second address, sets the second as default, deletes the first address.
-
-**E2E-2 — Checkout pre-selects default**: Authenticated user with a saved default address opens checkout; default address is pre-selected in the shipping picker; user completes the order; confirmation page shows the correct address.
-
-**E2E-3 — Save address at checkout**: Authenticated user with no saved addresses checks out with inline address and "Save this address" enabled; navigates to `/account/addresses` and sees the new address marked as default.
-
-**E2E-4 — New inline address without saving**: Authenticated user with saved addresses selects "Enter a new address" at checkout and completes the order without saving; address book is unchanged afterwards.
-
-## Risks & Mitigations
-
-| Risk | Mitigation |
+| Scenario | Response |
 |---|---|
-| Race condition when two requests set default simultaneously | Partial unique index (TR-3) provides DB-level enforcement; service also runs atomic transaction (TR-7) |
-| Checkout schema extension breaks existing API clients | Inline `shippingAddress` / `billingAddress` remain valid; new fields are additive and all optional |
-| User deletes address between checkout page load and submission | Checkout resolves and validates `*AddressId` at request time; validation returns 422 with clear error |
-| Large address lists slow down checkout page load | Index on `user_id` (TR-2); 20-address cap (FR-6) keeps result sets small |
+| Any address request without a valid session | HTTP 401 — authentication required |
+| Read, update, or delete an address the caller does not own, or one that does not exist | HTTP 404 — "Address not found" |
+| Create an address when the customer already holds 20 | HTTP 422 — "Address limit reached" |
+| Create or update with a missing required field or an invalid country code | HTTP 422 — field-level validation errors |
+| Checkout supplying both an inline shipping address and a shipping address identifier | HTTP 422 — "Provide either shippingAddress or shippingAddressId, not both" |
+| Checkout supplying neither an inline shipping address nor an identifier | HTTP 422 — "Shipping address is required" |
+| Checkout supplying a shipping address identifier the customer does not own | HTTP 422 — "Shipping address not found" |
+| Checkout asking to save an address that was supplied by identifier | HTTP 422 — "Cannot save an already-saved address" |
+| A saved address is deleted between loading the checkout surface and submitting it | HTTP 422 — the identifier resolves to nothing and the customer is told so |
+| Two requests concurrently designate different defaults | One prevails; the customer is left with exactly one default |
+
+## Security Considerations
+
+- The owning customer SHALL always be derived from the request's session and never from the request body, so no caller can write an address into another customer's book (FR-1).
+- Every read, update, delete, and checkout resolution SHALL be confined to the caller's own addresses, and an address belonging to another customer SHALL be reported as not found rather than as forbidden, so the response does not confirm that the identifier exists (LIM-6).
+- A saved-address identifier supplied at checkout SHALL be validated against the caller before the address data is read or stored on an order (FR-7).
+- Address data is personally identifying; it SHALL be returned only to the customer who owns it (FR-2, LIM-6).
+
+## Monitoring and Observability
+
+- Address creation, update, deletion, and default changes SHALL each be logged with the address and the customer, so an address a customer reports as missing or altered can be traced.
+- Address resolution during checkout SHALL be observable through the checkout path's own logging (`checkout.md`).
+
+## References
+
+### Related Specs
+
+- `checkout.md` — the checkout flow, the address field contract, and where a resolved address is stored
+- `orders.md` — the order record holding the independent address copies
+- `auth.md` — the session that owns an address book

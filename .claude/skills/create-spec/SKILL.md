@@ -3,99 +3,123 @@ name: create-spec
 description: >
   Write technical specification documents for new features or changes to existing features.
   Use proactively when the user asks to add a new feature, modify an existing feature, or
-  explicitly requests a spec. Covers requirements gathering, clarification, edge cases,
-  and iterative scoring. Outputs only spec .md files — does not implement code.
+  explicitly requests a spec. Covers scope-boundary and ownership questions, requirements
+  gathering, limits and constraints, edge cases, and self-review against the external-contract
+  test. Outputs only spec .md files in docs/specs/ — does not implement code.
 ---
 
 # Create Specification
 
-Write feature specs following the project's specification framework (`docs/specification-guide.md`).
+Write feature specs following [`docs/specification-guide.md`](../../../docs/specification-guide.md).
+Specs live in `docs/specs/`, flat, one file per feature domain.
+
 Your role is spec author only — never implement code.
 
-## Workflow
+## The rule everything else follows from
 
-### Phase 1: Understand
+A spec describes the system as an **external contract**. A line belongs only if it is
+verifiable from outside without reading the source. Most drafting mistakes are one of two
+things: writing an implementation plan instead of a contract, or restating a requirement
+another spec already owns.
 
-1. Read `docs/specification-guide.md` for the template and conventions
-2. Read `docs/architecture/overview.md` for system context
-3. Analyze the user's request — identify the core feature, affected modules, and integration points
-4. List what you know vs. what's ambiguous
+## Phase 1: Understand
 
-### Phase 2: Clarify
+1. Read `docs/specification-guide.md` — the test, the section order, the tagging conventions.
+2. Read two existing specs in `docs/specs/` to calibrate altitude. `cart.md` (many surfaces, heavy
+   cross-referencing) and `payment-webhooks.md` (small, constraint-driven) span the range.
+3. Read `docs/architecture/overview.md` for system context.
+4. Identify which existing spec **owns** each thing the feature touches. A new feature usually
+   extends two or three existing contracts and owns only what is genuinely new.
+5. List what you know versus what is ambiguous.
 
-Ask the user targeted questions before writing anything. Focus on:
+## Phase 2: Clarify
 
-- **Scope boundaries**: What's in vs. out of scope?
-- **User-facing behavior**: What does success look like for the end user?
-- **Edge cases**: Concurrent requests, empty states, partial failures, idempotency
-- **Integration points**: External systems, webhooks, existing modules affected
-- **Data model impact**: New tables, schema changes, migrations
-- **Error handling**: What happens when things go wrong?
-- **Security**: Auth, authorization, input validation, rate limiting
-- **E2E scenarios**: For user-facing features, what are the 3-5 main user flows that should be verified end-to-end?
+Ask before writing. Use `AskUserQuestion`, batching related questions into one call.
 
-Use the AskQuestion tool for structured questions when possible. Group related questions.
+Ask about:
 
-Do NOT proceed to drafting until you have enough clarity. It's better to ask one extra question than to guess.
+- **Scope boundary** — what this spec owns versus what an existing spec owns. Get this
+  wrong and two specs will contradict each other later.
+- **Observable acceptance** — what state means "done", stated so someone outside the code
+  could check it.
+- **Limits** — the numbers. Caps, lifetimes, page sizes, retry counts, precision, closed
+  value sets. A spec with no `LIM-` entries is usually underspecified.
+- **External constraints** — standards, provider behavior, delivery guarantees, platform
+  rules the design must honor but did not choose.
+- **Failure behavior** — what each rejection returns, and which failures deliberately succeed.
+- **Security posture** — what must not leak, what must not be reachable, what identity is
+  derived from.
 
-### Phase 3: Draft
+Do not ask what you can read from the code or from an existing spec.
 
-1. Create the spec file at `docs/specs/<feature-name>.md`
-2. Use the template from `docs/specification-guide.md`
-3. Follow these conventions strictly:
-   - RFC 2119 language (SHALL, SHOULD, MAY)
-   - Numbered requirements (FR-X, TR-X)
-   - Natural language naming ("order status", not "orderStatus")
-   - 🚧 markers for planned-but-undesigned items
-   - Feature-specific technical details only — never repeat standard stack info
-   - Bold for system components in data flows
-4. Think carefully about:
-   - Happy path AND failure paths in data flows
-   - Idempotency for webhook/event-driven features
-   - Retry strategies and dead-letter handling for async operations
-   - Database index needs for query patterns
-   - Backward compatibility if modifying existing features
-   - E2E test scenarios for user-facing features (main success path + key alternate paths)
+## Phase 3: Draft
 
-### Phase 4: Review and Iterate
+Create `docs/specs/<domain>.md`. Use the section order from the guide:
 
-After drafting, self-evaluate the spec across three dimensions:
+```
+Overview → Goals and Non-Goals → Functional Requirements (FR-)
+→ Technical Requirements / System Limits (LIM-) → Constraints (CON-)
+→ Error Scenarios → Security Considerations → Monitoring and Observability → References
+```
 
-| Dimension | What it measures |
-|-----------|-----------------|
-| **Clarity** | Can a developer implement this without asking questions? Are requirements unambiguous? |
-| **Completeness** | Are all scenarios covered? Edge cases? Error handling? Testing strategy? For user-facing features: are E2E scenarios listed for the main success path? |
-| **Technical approach** | Is the design sound? Does it follow project patterns? Are risks identified? |
+Write the Overview's **scope-boundary paragraph first** — naming which spec owns each
+adjacent thing. It determines what belongs in the rest of the document.
 
-**Rules:**
-- Minimum passing bar: all three dimensions must be strong (roughly 8/10 each)
-- If any dimension is weak, identify the specific gaps, revise the spec, and re-evaluate
-- Do NOT append scores or a score table to the spec file — evaluation is internal only
+Then:
 
-### Phase 5: Finalize
+- State every requirement as SHALL / SHALL NOT. Reserve SHOULD and MAY for genuine optionality.
+- Tag and cross-reference: `FR-`, `LIM-`, `CON-`, each citing the others that realize it, and
+  citing other specs by file and tag (`orders.md` LIM-2). Leave no dangling reference.
+- Keep wire vocabulary in backticks — field names, endpoints, status values, headers, cookies,
+  environment variables. Drop internal names entirely.
+- Describe the required state. No "currently", "will be added", "this replaces", no 🚧,
+  no changelog, no future-enhancements section — a deferred item is a Non-Goal.
 
-Once the score meets the threshold:
+Cover the paths that are easy to omit: concurrent access, idempotency and repeated delivery,
+partial failure and atomicity, empty and first-use states, expiry, and the cases that
+deliberately succeed where a reader would expect an error.
 
-1. Present the final spec to the user
-2. Summarize key decisions made during the process
-3. List any deferred items (marked with 🚧) that need future attention
-4. Do NOT implement any code — the spec is the deliverable
+## Phase 4: Review
 
-## Updating Existing Specs
+Re-read the draft against these, and revise until each holds:
 
-When modifying an existing feature:
+| Check | Failure looks like |
+|---|---|
+| Every line passes the external-contract test | File paths, component names, cache keys, schema columns, call ordering |
+| Ownership is singular | This spec restates a rule another spec already owns |
+| Limits are assertable | A `LIM-` with no number, bound, or closed set |
+| Constraints are load-bearing | A `CON-` no requirement leans on |
+| References resolve | A cited `FR-`/`LIM-` that does not exist, or a renamed tag with stale citations |
+| Errors are complete | A rejection path in the requirements with no row in the table |
+| Security is specific | "Input is validated" instead of what the guarantee prevents |
 
-1. Read the existing spec from `docs/specs/`
-2. Identify which sections need changes
-3. Preserve unchanged requirements — don't rewrite what still holds
-4. Add new requirements with the next available FR-X / TR-X numbers
-5. Note what changed and why in the Overview or a changelog note
+Do not append scores or a review table to the spec file.
 
-## Common Pitfalls to Catch
+## Phase 5: Finalize
 
-- Requirements that are too vague to test ("the system should be fast")
-- Missing error scenarios for external integrations
-- No consideration of concurrent access or race conditions
-- Forgetting non-functional requirements (monitoring, logging, alerts)
-- Scope creep — gently push back and suggest non-goals
-- Repeating standard tech stack details already in `architecture.md`
+1. Present the spec.
+2. Summarize the decisions the clarification phase settled.
+3. List the Non-Goals that were deferred rather than genuinely excluded.
+4. Do not implement code — the spec is the deliverable.
+
+## Updating an existing spec
+
+1. Read the spec and every spec that cross-references it (`grep -rn "<file>.md" docs/specs/`).
+2. Change the requirements that changed; leave the rest alone.
+3. Keep tag numbers stable — a `LIM-3` cited from other specs stays `LIM-3`. Add new
+   requirements at the next free number.
+4. Update citations in other specs when a tag's meaning changes.
+5. Record no changelog. The spec states the contract as it now is; git holds the history.
+
+## Pitfalls
+
+- **An implementation plan wearing spec clothes** — numbered data-flow steps, module layouts,
+  package choices. Ask what a caller would observe, and write that instead.
+- **A schema table** — replace with the observable property. `numeric(15,2)` becomes "carries
+  exactly two decimal places".
+- **Duplicated ownership** — the same rule stated in two specs. Pick an owner; the other cites it.
+- **A spec per surface** — a sidebar, a page, and a list widget for one domain are `FR-`
+  entries in that domain's spec, not three specs.
+- **Vague requirements** — "the system should be fast". If it cannot fail a test, it is not
+  a requirement.
+- **Scope creep** — push back and propose a Non-Goal.

@@ -1,497 +1,139 @@
-# 🧭 Meta Technical Specification Framework
+# Specification Guide
 
-## Purpose
+How to write a spec in this repository. Specs live in [`docs/specs/`](./specs/), one flat directory, one file per feature domain.
 
-This document defines the framework, structure, and conventions for writing technical specifications in this organization.
-It acts as a meta-specification — a shared guide that ensures every spec is consistent, complete, and easily interpreted by humans **and** AI tools such as Cursor.
+A spec describes the system as an **external contract** — what must be true, not how it is built.
 
----
+## The test
 
-## Audience
+A line belongs in a spec only if it is **verifiable from outside without reading the source**.
 
-**Writers:** Engineers, architects, and product managers creating specifications
-**Readers:** Developers implementing features, reviewers validating designs, QA engineers, AI assistants, and future maintainers
+Apply it to every line before writing it. Most of what fails the test is not wrong, it is just something else: a design note, a schema, a test plan, an implementation sketch. Those belong in code, in an ADR, or nowhere.
 
----
+| Line | Verdict |
+|---|---|
+| "A cart holds exactly one currency, fixed by its first item" | ✅ observable from the API |
+| "The cart module lives at `modules/cart/`" | ❌ file path |
+| "Line totals use `numeric(15,2)` to avoid float errors" | ❌ schema detail — say "carry exactly two decimal places" |
+| "A guest cart expires 30 days after last modification" | ✅ observable by waiting |
+| "`CartSidebar` reads the `['cart']` query cache" | ❌ internal component and cache key |
+| "The sidebar reflects a change made from any other surface without a reload" | ✅ same behavior, stated observably |
 
-## For AI Assistants: Implementation Context
+## Include
 
-**When implementing features from specifications:**
+- **Functional Requirements** (`FR-`) — required behavior, stated as SHALL.
+- **Technical Requirements** (`LIM-`) — binding limits on observable behavior: size caps, lifetimes, precision, closed vocabularies, isolation guarantees.
+- **Constraints** (`CON-`) — externally imposed rules and substrates: standards, wire protocols, platform behavior, another spec's ownership.
+- **Error Scenarios** — the input → response contract, as a table.
+- **Security Considerations** — what each guarantee protects against, and why.
+- **Monitoring and Observability** — what must be observable, and what a signal means.
 
-1. **Tech Stack & Patterns**: Consult `architecture.md` and `AGENTS.md` for:
-   - Standard tech stack (Fastify, ts-rest, Drizzle ORM, Zod, Temporal, etc.)
-   - Architectural patterns (modular structure, layers, conventions)
-   - Code style and formatting rules
-   - Database conventions and schema patterns
+## Exclude
 
-2. **Feature Requirements**: Individual specs in `docs/specs/` define:
-   - Business requirements (what the feature does)
-   - Feature-specific technical constraints
-   - Data models and API contracts
-   - Feature-specific error handling
+- Schema and column tables, config shapes, type definitions, request/response JSON examples.
+- Internal names: modules, functions, classes, components, hooks, cache keys, npm packages.
+- File paths and line numbers.
+- Step-by-step data flow and call ordering ("1. Handler validates… 2. Service queries…").
+- Design rationale, risk registers, alternatives considered — those belong in an ADR.
+- Test plans and QA checklists at every level (unit, integration, E2E, manual).
+- Status markers (🚧), "future enhancements", changelogs, review sign-off blocks.
 
-3. **Implementation Approach**: Combine both sources:
-   - Use standard patterns from `architecture.md`
-   - Apply feature requirements from the spec
-   - Follow conventions defined in `AGENTS.md`
+## Keep as vocabulary
 
-**Key Principle:** Specs describe **what** and **why**. Architecture docs describe **how** and **with what tools**.
+Entity, field, and enum names; endpoints; status values; header, cookie, and environment-variable names; protocol terms. These are the contract, not implementation detail. Write them as they appear on the wire.
 
----
+## Section order
 
-## Quick Reference (TL;DR)
+Every spec uses these headings, in this order. Omit a section only when the feature genuinely has nothing to say under it.
 
-Every specification must include the following core sections:
-
-- Title
-- Overview
-- Goals and Non-Goals
-- Functional Requirements (FR-X)
-- Technical Requirements (TR-X)
-- Data Flow
-- Risks and Mitigations
-- Testing and Validation
-- Review and Version Control
-
-Optional sections may include Security, Monitoring, API details, Performance, Configuration, or Future Enhancements.
-
----
-
-## When to Write a Specification
-
-Write a specification when:
-
-- Building a new feature or integration with multiple components
-- Implementing a third-party API or webhook
-- Making architectural or schema changes that affect multiple modules
-- Creating new workflows or introducing compliance, performance, or security-critical features
-
-You may skip a specification for trivial bug fixes, cosmetic UI changes, or internal refactors that do not affect behavior.
-For emergency hotfixes, document retrospectively.
-
----
-
-## Creating vs. Updating Specifications
-
-### Creating a New Specification
-
-1. Copy the template from the bottom of this guide
-2. Fill in all required sections (Title, Overview, Goals, FR-X, TR-X, Data Flow, Risks, Testing)
-3. Use 🚧 for planned but not yet designed features
-4. Get peer review before formal approval
-
-**Writing conventions:**
-- Do not prescribe internal naming, npm packages, or code structure — describe observable behavior only
-- Data model sections describe the **target state**, never frame as "changes" or "migrations"
-
-### Updating an Existing Specification
-
-- **During implementation:** Update requirements that change, add clarifications
-- **After implementation:** Remove 🚧 markers, update examples to match reality
-- **When requirements change:** Document what changed and why, obtain re-approval if significant
-- **Maintenance:** Update specs in the same PR as code changes; treat as living documentation
-
----
-
-## Document Structure
-
-### 1. Title
-
-Use a descriptive feature name as the H1 heading.
-Example: `# Billing - Chargebee Migration`
-
----
-
-### 2. Overview
-
-Write two to four paragraphs explaining:
-
-- What the feature does
-- Why it is needed
-- Who benefits
-- How it fits into the larger system
-
-Keep it concise and contextual.
-
----
-
-### 3. Goals and Non-Goals
-
-**Goals** describe what success looks like and measurable outcomes.
-**Non-Goals** describe explicitly what is out of scope to prevent feature creep.
-
----
-
-### 4. Functional Requirements (FR-X)
-
-Describe what the system does from the user or business perspective.
-Use numbered sections and RFC 2119 language.
-
-Example:
-
-```markdown
-### FR-1: Contact Retrieval
-
-- The system SHALL fetch contacts from the external ERP system using its REST API.
-- The system SHALL retrieve all active contacts.
-- The system SHALL handle pagination for large datasets.
 ```
-
----
-
-### 5. Technical Requirements (TR-X)
-
-Describe how the system will be built — architecture, design, and constraints.
-Include diagrams, schema changes, dependencies, configuration, and error handling.
-
-**DO NOT include standard tech stack details** that are already defined in `architecture.md` and `AGENTS.md`.
-
-**Examples of what NOT to include:**
-- ❌ "The system SHALL use Fastify for HTTP handling"
-- ❌ "The system SHALL use ts-rest for API contracts"
-- ❌ "The system SHALL use Zod for validation"
-- ❌ "The system SHALL use Drizzle ORM for database operations"
-- ❌ "The system SHALL follow modular architecture"
-- ❌ Implementation file paths: `Implementation: apps/backend/src/modules/foo/bar.ts`
-- ❌ Function/class names: `(archiveInboundEmailPayload)`
-
-**Why no implementation references?** Specs define requirements, not code locations. Implementation paths create maintenance burden (specs become stale when code moves) and blur the line between "what to build" and "what was built." Let the code be discoverable through search and architecture docs.
-
-**Examples of what TO include:**
-- ✅ Feature-specific architectural decisions (e.g., webhook processing flow)
-- ✅ Database schema changes specific to this feature
-- ✅ Integration points with external systems
-- ✅ Feature-specific error handling strategies
-- ✅ Performance requirements unique to this feature
-
-**Rationale:** The project's tech stack is defined once in `architecture.md`. Repeating it in every spec creates maintenance burden. AI assistants and developers should consult `architecture.md` and `AGENTS.md` for implementation patterns.
-
-Example:
-
-```markdown
-### TR-1: Authentication
-
-- The system SHALL authenticate using API key authentication.
-- The system SHALL manage sessions securely.
-
-### TR-2: Database Schema
-
-- The system SHALL add a `contacts` table with fields: id, name, email, external_id.
-- The system SHALL create an index on external_id for efficient lookups.
-```
-
----
-
-### 6. Data Flow
-
-Explain the step-by-step process and lifecycle of the feature.
-List all components and actors.
-
-Example:
-
-```markdown
-## Data Flow
-
-### Webhook Reception and Workflow Processing
-
-1. Stripe processes a payment event.
-2. Stripe sends webhook notification.
-3. **Webhook Handler** validates payload and authenticity.
-4. **Handler** starts a Temporal workflow and returns HTTP 200.
-5. **Workflow** executes activities: parse, update order status, notify.
-6. Temporal retries failed activities automatically.
-```
-
-Best practices:
-
-- Use bold for system components and actors
-- Include both success and failure paths
-- Reference FR/TR identifiers where relevant
-
----
-
-### 7. Security Considerations
-
-When applicable, describe:
-
-- Authentication and authorization
-- Encryption at rest and in transit
-- Input validation and sanitization
-- Rate limiting or DDoS protection
-- Secret management
-- Vulnerability scanning or compliance requirements
-
----
-
-### 8. Monitoring and Observability
-
-Define how the feature will be monitored in production.
-
-Include:
-
-- Metrics (latency, throughput, error rates)
-- Logging requirements (what, when, level)
-- Alert conditions (thresholds, escalation path)
-- Dashboards or reports needed
-
-Example:
-
-```markdown
-## Monitoring and Observability
-
-- 🚧 Track webhook success rate.
-- Log all failed webhook payloads with request ID.
-- 🚧 Alert if more than 2 percent failures occur in 10 minutes.
-```
-
----
-
-### 9. Error Scenarios
-
-Document expected error cases and handling behavior.
-
-Example:
-
-```markdown
-### Error Scenarios
-
-- Invalid input → HTTP 400 Bad Request
-- Authentication failure → HTTP 401 or 403
-- Rate limiting → HTTP 429 with retry-after
-- External service unavailable → HTTP 503 with exponential backoff
-```
-
----
-
-### 10. Testing and Validation
-
-Every specification must describe how correctness will be verified. Structure this section with explicit subsections:
-
-#### Unit Tests
-
-List key unit test scenarios for services and domain logic.
-
-#### Integration Tests
-
-List API-level integration test scenarios covering success and error paths. Include mocking or stubbing strategy for external systems.
-
-#### End-to-End Tests (required for user-facing features)
-
-For any feature that introduces or modifies user-facing pages or flows, list concrete E2E test scenarios covering the main success path. These scenarios will be implemented as Playwright tests during development.
-
-Guidelines:
-
-- Cover the primary happy path (the main thing the feature does for the user)
-- Cover the most important alternate path (e.g., empty state, error state)
-- Do NOT attempt exhaustive E2E coverage — edge cases belong in unit/integration tests
-- Write scenarios as user-observable behaviors (e.g., "Entering a query and submitting navigates to the search results page")
-- Reference existing E2E tests as examples: `apps/web/e2e/search.spec.ts`, `apps/web/e2e/cart-flow.spec.ts`
-
-Backend-only features (APIs, background jobs, migrations) do not require E2E test scenarios.
-
-#### Manual QA Checklist
-
-List visual or interactive checks that are hard to automate (styling, responsiveness, UX feel).
-
----
-
-### 11. Risks and Mitigations
-
-List known risks, their potential impact, and mitigation or rollback plans.
-Keep this section short and focused.
-
-Example:
-
-```markdown
-## Risks and Mitigations
-
-- External API downtime → Add retry logic and dead-letter queue.
-- Migration failure → Perform database backup before deploy.
-- Token scope misconfiguration → Validate credentials in staging.
-```
-
----
-
-### 12. Optional and Extended Sections
-
-Add these when relevant:
-
-- API integration details (endpoints, request and response examples)
-- Performance requirements (latency, throughput, scalability)
-- Database changes (schemas, indexes, migrations)
-- Deployment strategy (rollout, feature flags, rollback)
-- Future enhancements or roadmap notes
-- Local testing examples (curl requests, environment setup)
-
----
-
-### 13. Requirement Language
-
-Use **RFC 2119** keywords for precision:
-
-- MUST or SHALL → mandatory
-- MUST NOT or SHALL NOT → prohibited
-- SHOULD → recommended
-- SHOULD NOT → discouraged
-- MAY or CAN → optional
-
-Good example:
-
-> The system SHALL validate webhook authenticity using IP whitelisting.
-
-Bad example:
-
-> The system will validate webhooks.
-
----
-
-### 14. Writing Style
-
-Specifications are human-readable documents, not code. Use natural language instead of code-level naming conventions.
-
-**Naming:**
-
-- ✅ "invoice number", "issue date", "total amount"
-- ❌ "invoiceNumber", "issueDate", "totalAmount"
-- ✅ "billing inbound token", "company ID"
-- ❌ "billingInboundToken", "companyId"
-
-**Rationale:** Specifications describe business requirements for a broad audience — product managers, QA engineers, and future maintainers. Code-level naming creates unnecessary coupling to implementation details and reduces readability.
-
----
-
-### 15. Status Indicators
-
-Use emoji to mark implementation state:
-
-- 🚧 planned or not yet implemented
-- (no icon) ready or implemented
-- ✅ explicitly completed
-
-Example:
-
-```markdown
-- The system SHALL process webhook requests within timeout.
-- 🚧 The system SHALL implement dead-letter queue for failed messages.
-- The system SHALL log all processing errors.
-```
-
----
-
-### 16. Review and Approval Process
-
-1. Draft — author writes the initial version.
-2. Technical Review — peers and architect validate feasibility.
-3. Stakeholder Review — product or business validates alignment.
-4. Approval — marked ready for implementation.
-5. Implementation — update spec as changes occur.
-6. Post-Implementation — remove 🚧 markers and document final behavior.
-
----
-
-### 17. Version Control
-
-- Store specifications in `docs/specs/` or a dedicated folder.
-- Use descriptive filenames such as `billing-chargebee-migration.md`.
-- Reference the specification in related pull requests.
-- Keep specifications up to date with actual behavior.
-- Treat specifications as versioned documentation reviewed like code.
-
----
-
-## Specification Template
-
-Copy this block when creating a new specification:
-
-```markdown
-# [Feature Name]
+# Title
 
 ## Overview
-
-Describe what the feature does, why it exists, and who benefits.
-
 ## Goals and Non-Goals
-
-- Goal: …
-- Non-Goal: …
-
+### Goals
+### Non-Goals
 ## Functional Requirements
-
-### FR-1: [Title]
-
-- The system SHALL …
-- 🚧 The system SHALL …
-
-## Technical Requirements
-
-### TR-1: [Title]
-
-- The system SHALL …
-- The system SHOULD …
-
-**Note:** Focus on feature-specific architecture. Standard tech stack (Fastify, ts-rest, Drizzle, etc.) is defined in `architecture.md` — do not repeat it here.
-
-## Data Flow
-
-### [Process Name]
-
-1. **Actor** initiates.
-2. **System Component** processes.
-3. **External Service** responds.
-4. **System Component** stores result.
-
-## Security Considerations
-
-Describe relevant security aspects.
-
-## Monitoring and Observability
-
-Describe metrics, logs, and alerts.
-
+### FR-1: <title>
+## Technical Requirements (System Limits)
+## Constraints (Externally Imposed)
 ## Error Scenarios
-
-List expected errors and responses.
-
-## Testing and Validation
-
-### Unit Tests
-
-- Service: [describe key unit test scenarios]
-
-### Integration Tests
-
-- Full API flow: [describe integration test scenarios]
-
-### End-to-End Tests
-
-<!-- Required for user-facing features. List 3-8 scenarios covering the main success path.
-     Backend-only features may omit this section. -->
-
-- [User action] → [expected observable result]
-
-### Manual QA Checklist
-
-- [Visual or interactive check]
-
-## Risks and Mitigations
-
-Describe known risks and mitigation strategies.
+## Security Considerations
+## Monitoring and Observability
+## References
+### Related Specs
+### Related ADRs
 ```
 
----
+### Overview
 
-## Best Practices Checklist
+Three paragraphs:
 
-Before finalizing a specification:
+1. **What the feature is** and what it does, in the language a reader who has never seen the code would use.
+2. **The scope boundary** — what this spec owns, and which spec owns each adjacent thing. Name the files.
+3. The fixed line: *"This document states the required external contract; where the running system diverges from a stated requirement, the system is at fault, not this document."*
 
-- Title and overview are clear
-- Goals and non-goals are defined
-- All requirements use SHALL / SHOULD / MAY language
-- Requirements are numbered (FR-X, TR-X, NFR-X)
-- Technical requirements focus on feature-specific architecture (no generic tech stack repetition)
-- Data flow is complete and step-by-step
-- Security considerations are addressed
-- Monitoring and error handling are defined
-- Testing and validation are included
-- Risks and mitigations are documented
-- 🚧 markers are used for deferred work
+The boundary paragraph is the one that keeps a set of specs from drifting into mutual contradiction. Write it before the requirements, not after.
+
+### Goals and Non-Goals
+
+Goals: what this spec defines. Non-Goals: what it deliberately does not — each either a genuine exclusion or a pointer to the spec that owns it. A Non-Goal is where a "future enhancement" belongs.
+
+### Functional Requirements
+
+Numbered `FR-1`, `FR-2`, … each with a short title, each a group of SHALL bullets. Cite the `LIM-` and `CON-` tags that bind it, and the requirements in other specs it depends on (`cart.md` FR-7).
+
+### Technical Requirements (System Limits)
+
+`LIM-` entries in bold-lead form, each naming the limit and citing where it is realized:
+
+```markdown
+- **LIM-4 — Guest cart lifetime.** A guest cart and its `cart_token` cookie both expire
+  30 days after the cart was last modified, and every modification restarts that 30 days.
+  A cart past its expiry is not found. (FR-2)
+```
+
+A `LIM-` is a number, a bound, or a closed set that a test could assert against. If it cannot fail, it is not a limit.
+
+### Constraints (Externally Imposed)
+
+`CON-` entries in the same form, for rules the design must honor but did not choose: a standard (ISO 4217), a protocol behavior (at-least-once webhook delivery), a platform guarantee (browser cookie semantics), or another spec's ownership. State *why* it constrains this feature — a constraint no requirement leans on does not belong.
+
+### Error Scenarios
+
+A two-column table: `| Scenario | Response |`. Cover every rejection path, plus the cases that deliberately succeed where a reader might expect failure ("order already paid → completes successfully, nothing changes").
+
+### Security Considerations
+
+One bullet per guarantee, each naming the attack or leak it prevents and citing the `FR-`/`LIM-` that carries it. "Input is validated" says nothing; "an address belonging to another customer is reported as not found rather than forbidden, so the response does not confirm the identifier exists" says something.
+
+### Monitoring and Observability
+
+What must be observable and what its absence or spike means. Not a dashboard design.
+
+## Requirement language
+
+RFC 2119, and mean it:
+
+- **SHALL** — required. The default. Anything a reader could rely on.
+- **SHALL NOT** — prohibited. Prefer it to a hedged SHALL.
+- **SHOULD** — recommended, with a real reason to deviate. Rare.
+- **MAY** — genuinely optional; a conforming system may do either.
+
+Use natural language for names in prose ("order status", "cart token"), and exact identifiers in backticks when they are the wire contract (`orderNumber`, `cart_token`, `X-User-Email`).
+
+## Cross-references
+
+Tags are addressable: cite them as `cart.md` FR-7, `orders.md` LIM-2. Leave no dangling reference — if you cite a tag, it exists; if you rename one, update its citations. When two specs touch the same behavior, exactly one owns it and the other references it. Two specs stating the same rule is how they start to disagree.
+
+## Describe the required state
+
+Write the system as it must be, not how it got there. No "currently", "previously", "will be added", "this replaces", "changes to the orders table". A spec that reads as a diff stops being readable the moment the diff lands.
+
+## Creating and updating
+
+**New spec**: pick a slug matching the existing files (lowercase, hyphenated, named for the domain — `saved-addresses.md`, not `add-address-feature.md`). One file per domain: surfaces belonging to one domain go in that domain's spec as their own `FR-`, not in a spec of their own.
+
+**Existing spec**: change the requirements that changed. Keep tag numbers stable — a `LIM-3` cited from three other specs stays `LIM-3`. Add new requirements at the next free number. Do not record what changed; the spec states the contract as it now is, and git holds the history.
+
+Update the spec in the same change as the code.

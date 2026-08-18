@@ -272,7 +272,7 @@ export const api = initClient(apiContract, {
 ### Negative
 
 - **Every authenticated request hits the database.** Session validation requires one SELECT (join sessions + users) plus one UPDATE (sliding expiry). Under high load this is an additional ~2 DB round-trips per request. Mitigation: the `idx_sessions_token` unique index makes the lookup O(log n); the UPDATE can be made async (fire-and-forget) if latency becomes a concern.
-- **Sessions table grows without cleanup.** Expired rows accumulate until a cleanup job is added (marked 🚧 in `docs/specs/auth.md` as TR-7). This is operational debt, not a correctness issue.
+- **Sessions table grows without cleanup.** Expired rows accumulate until a cleanup job is added (`docs/specs/auth.md` CON-5). This is operational debt, not a correctness issue.
 - **`argon2` is a native addon.** The `argon2` npm package compiles a C extension. It requires a build toolchain (node-gyp) and must be cross-compiled for Docker/CI targets. The pure-JS fallback (`argon2-wasm`) is an alternative if build complexity becomes a problem.
 - **Session management complexity vs. simple token.** Token comparison was `O(1)` crypto; session auth is a DB query. The tradeoff is justified by the need for verified user identity and revocability.
 

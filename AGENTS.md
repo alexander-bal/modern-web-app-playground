@@ -131,12 +131,11 @@ Collapse this to a single `typescript` dependency once 7.1 ships its API.
 
 ### Specs
 
-Feature specs live in `docs/specs/`. Use `FR-*` for functional requirements, `TR-*` for technical constraints.
+Feature specs live in `docs/specs/`, flat, one file per feature domain. A spec states the external contract — what is true from outside — not how it is built. Tags: `FR-*` behavior, `LIM-*` binding limits, `CON-*` externally imposed constraints; cross-referenced by file and tag (`orders.md` LIM-2). Conventions: [`docs/specification-guide.md`](docs/specification-guide.md).
 
 ## After Changes
 
 - `pnpm lint`, `pnpm test`, `pnpm typecheck`, `pnpm type-coverage`
-- If implementing from `docs/specs/`: Remove 🚧 from completed items
-- If the task added or modified a user-facing feature: manually walk through the affected user flows end-to-end in a browser
-- If implementing a user-facing feature with E2E scenarios in the spec: write Playwright tests covering those scenarios in `apps/web/e2e/`. Follow existing patterns (`apps/web/e2e/*.spec.ts`, page objects in `apps/web/e2e/pages/`). Run `pnpm test:e2e` to verify.
-- **When a spec has E2E scenarios:** Write Playwright tests in `apps/web/e2e/` as part of the same implementation. E2E scenarios are not optional deliverables. This is a fullstack monorepo — backend features almost always have a frontend counterpart in `apps/web/`.
+- If the change alters what a spec in `docs/specs/` promises: update that spec in the same change, and update any spec that cross-references the tags you changed
+- For a user-facing change: manually walk through the affected user flows end-to-end in a browser
+- **For a user-facing change:** write Playwright tests in `apps/web/e2e/` covering the spec's `FR-*` for the surfaces you touched, as part of the same implementation — not as a follow-up. Follow existing patterns (`apps/web/e2e/*.spec.ts`, page objects in `apps/web/e2e/pages/`). Run `pnpm test:e2e` to verify. This is a fullstack monorepo — backend features almost always have a frontend counterpart in `apps/web/`.
