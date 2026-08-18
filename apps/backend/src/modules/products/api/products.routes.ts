@@ -3,11 +3,7 @@ import { initServer } from '@ts-rest/fastify';
 import { tsRestRouterOptions } from '../../../config/server.js';
 import type { FastifyInstance } from 'fastify';
 import { createModuleLogger } from '../../../lib/logger.js';
-import {
-  ProductNotFoundError,
-  productsService,
-  type SearchProductsQuery,
-} from '../services/products.service.js';
+import { ProductNotFoundError, productsService } from '../services/products.service.js';
 
 const logger = createModuleLogger('products');
 
@@ -63,7 +59,7 @@ const router = s.router(productsContract, {
 
   search: async ({ query }) => {
     try {
-      const result = await productsService.search(query as SearchProductsQuery);
+      const result = await productsService.search(query);
 
       return {
         status: 200 as const,

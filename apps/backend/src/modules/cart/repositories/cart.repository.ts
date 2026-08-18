@@ -105,7 +105,7 @@ export async function findCartItems(
 ): Promise<OrderItem[]> {
   const results = await database.select().from(orderItems).where(eq(orderItems.orderId, orderId));
 
-  return results as OrderItem[];
+  return results;
 }
 
 /**

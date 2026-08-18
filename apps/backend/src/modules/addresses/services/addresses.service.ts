@@ -127,11 +127,8 @@ export async function createAddressService(
   return toPublic(address);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildUpdateData(body: UpdateAddressBody): Partial<Omit<NewAddressEntity, 'userId'>> {
-  return Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined)) as Partial<
-    Omit<NewAddressEntity, 'userId'>
-  >;
+  return Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined));
 }
 
 export async function updateAddressService(

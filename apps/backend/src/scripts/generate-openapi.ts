@@ -236,7 +236,7 @@ function generateSpec(filter: ContractName[] | null): OpenAPIObject {
     }
   );
 
-  return openApiDocument as OpenAPIObject;
+  return openApiDocument;
 }
 
 /**

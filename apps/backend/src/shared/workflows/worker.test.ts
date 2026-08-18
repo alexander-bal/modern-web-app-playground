@@ -88,7 +88,7 @@ describe('Temporal Worker Sentry Integration', () => {
     const mockNext = vi.fn().mockResolvedValue(successResult);
 
     // Execute the interceptor
-    const result = await interceptor.execute(mockInput as ActivityExecuteInput, mockNext);
+    const result = await interceptor.execute(mockInput, mockNext);
 
     // Verify successful result is returned
     expect(result).toBe(successResult);
